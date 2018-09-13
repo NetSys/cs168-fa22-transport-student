@@ -1,1 +1,2 @@
-# cs168-fall18-student
+# CS 168: Project Code for Students (Fall '18)
+
