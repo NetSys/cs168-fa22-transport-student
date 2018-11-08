@@ -570,7 +570,7 @@ class StudentUSocket(StudentUSocketBase):
 
     assert self.state not in (SYN_RECEIVED, LISTEN)
 
-    if self.state in (CLOSED):
+    if self.state is CLOSED:
       return
     # Complete for Stage 1
     elif self.state in (ESTABLISHED, FIN_WAIT_1, FIN_WAIT_2,
