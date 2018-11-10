@@ -1,4 +1,4 @@
-# Copyright 2011,2012 James McCauley
+# Copyright 2011,2012,2018 James McCauley
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -45,9 +45,7 @@ from time import sleep
 import select
 import threading
 
-import random
-import hashlib
-import base64
+from authentication import BasicAuthMixin
 
 from pox.core import core
 
@@ -414,8 +412,14 @@ class SplitCGIRequestHandler (SplitRequestHandler,
         os.chdir(olddir)
 
 
-class SplitterRequestHandler (BaseHTTPRequestHandler):
+class SplitterRequestHandler (BaseHTTPRequestHandler, BasicAuthMixin):
+  basic_auth_info = {} # username -> password
+  basic_auth_enabled = None
+
   def __init__ (self, *args, **kw):
+    if self.basic_auth_info:
+      self.basic_auth_enabled = True
+
     #self.rec = Recording(args[0])
     #self.args = args
     #self.matches = self.matches.sort(key=lambda e:len(e[0]),reverse=True)
@@ -445,6 +449,15 @@ class SplitterRequestHandler (BaseHTTPRequestHandler):
                               core.version_name,
                               BaseHTTPRequestHandler.version_string(self))
 
+  def _check_basic_auth (self, user, password):
+    if self.basic_auth_info.get(user) == password: return True
+    import web.authentication
+    web.authentication.log.warn("Authentication failure")
+    return False
+
+  def _get_auth_realm (self):
+    return "POX"
+
   def handle_one_request(self):
     _shutdown_helper.register(self.connection)
     self.raw_requestline = self.rfile.readline()
@@ -453,6 +466,8 @@ class SplitterRequestHandler (BaseHTTPRequestHandler):
         return
     if not self.parse_request(): # An error code has been sent, just exit
         return
+
+    if not self._do_auth(): return
 
     handler = None
 
@@ -488,9 +503,29 @@ class SplitterRequestHandler (BaseHTTPRequestHandler):
 class SplitThreadedServer(ThreadingMixIn, HTTPServer):
   matches = [] # Tuples of (Prefix, TrimPrefix, Handler)
 
-#  def __init__ (self, *args, **kw):
-#    BaseHTTPRequestHandler.__init__(self, *args, **kw)
+  def __init__ (self, *args, **kw):
+    self.ssl_server_key = kw.pop("ssl_server_key", None)
+    self.ssl_server_cert = kw.pop("ssl_server_cert", None)
+    self.ssl_client_certs = kw.pop("ssl_client_certs", None)
+    HTTPServer.__init__(self, *args, **kw)
 #    self.matches = self.matches.sort(key=lambda e:len(e[0]),reverse=True)
+
+    self.ssl_enabled = False
+    if self.ssl_server_key or self.ssl_server_cert or self.ssl_client_certs:
+      import ssl
+      # The Python SSL stuff being used this way means that failing to set up
+      # SSL can hang a connection open, which is annoying if you're trying to
+      # shut down POX.  Do something about this later.
+      cert_reqs = ssl.CERT_REQUIRED
+      if self.ssl_client_certs is None:
+        cert_reqs = ssl.CERT_NONE
+      self.socket = ssl.wrap_socket(self.socket, server_side=True,
+          keyfile = self.ssl_server_key, certfile = self.ssl_server_cert,
+          ca_certs = self.ssl_client_certs, cert_reqs = cert_reqs,
+          do_handshake_on_connect = True,
+          ssl_version = ssl.PROTOCOL_TLSv1_2,
+          suppress_ragged_eofs = True)
+      self.ssl_enabled = True
 
   def set_handler (self, prefix, handler, args = None, trim_prefix = True):
     # Not very efficient
@@ -562,6 +597,8 @@ class InternalContentHandler (SplitRequestHandler):
   provide things which look like directories by including the slashed
   versions in the dictionary.
   """
+  args_content_lookup = True # Set to false to disable lookup on .args
+
   def do_GET (self):
     self.do_response(True)
   def do_HEAD (self):
@@ -571,7 +608,7 @@ class InternalContentHandler (SplitRequestHandler):
     try:
       path = self.path.lstrip("/").replace("/","__").replace(".","_")
       r = getattr(self, "GET_" + path, None)
-      if r is None and self.args is not None:
+      if r is None and self.args is not None and self.args_content_lookup:
         try:
           r = self.args[self.path]
         except Exception:
@@ -605,7 +642,9 @@ class InternalContentHandler (SplitRequestHandler):
       if len(r) == 2 and not isinstance(r, str):
         ct,r = r
       else:
-        if "<html" in r[:255]:
+        if r.lstrip().startswith('{') and r.rstrip().endswith('}'):
+          ct = "application/json"
+        elif "<html" in r[:255]:
           ct = "text/html"
         else:
           ct = "text/plain"
@@ -621,8 +660,19 @@ class InternalContentHandler (SplitRequestHandler):
       self.wfile.write(r)
 
 
-def launch (address='', port=8000, static=False):
-  httpd = SplitThreadedServer((address, int(port)), SplitterRequestHandler)
+def launch (address='', port=8000, static=False, ssl_server_key=None,
+            ssl_server_cert=None, ssl_client_certs=None):
+  def expand (f):
+    if isinstance(f, str): return os.path.expanduser(f)
+    return f
+  ssl_server_key = expand(ssl_server_key)
+  ssl_server_cert = expand(ssl_server_cert)
+  ssl_client_certs = expand(ssl_client_certs)
+
+  httpd = SplitThreadedServer((address, int(port)), SplitterRequestHandler,
+                              ssl_server_key=ssl_server_key,
+                              ssl_server_cert=ssl_server_cert,
+                              ssl_client_certs=ssl_client_certs)
   core.register("WebServer", httpd)
   httpd.set_handler("/", CoreHandler, httpd, True)
   #httpd.set_handler("/foo", StaticContentHandler, {'root':'.'}, True)
@@ -652,7 +702,9 @@ def launch (address='', port=8000, static=False):
 
   def run ():
     try:
-      log.debug("Listening on %s:%i" % httpd.socket.getsockname())
+      msg = "https" if httpd.ssl_enabled else "http"
+      msg += "://%s:%i" % httpd.socket.getsockname()
+      log.info("Listening at " + msg)
       httpd.serve_forever()
     except:
       pass
