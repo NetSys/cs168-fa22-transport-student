@@ -95,12 +95,12 @@ def launch (log_name="", data="", drop_count=0,
         k = tcp.seq
         if k in self.sent_pkts or self.dropnext:
           self.dropnext = False
-          log.debug("dropped packet")
+          log.info("dropped packet seq={0}, ack={1}".format(k, tcp.ack))
           return True
         else:
           self.dropnext = True
           self.sent_pkts[k] = True
-          log.debug("let packet through")
+          log.info("let packet through seq={0}, ack={1}".format(k, tcp.ack))
           return False
 
     topo.get_wire(r1,c1).drop_conditions.append(drop_one_pass_one())

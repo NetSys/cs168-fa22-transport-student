@@ -95,11 +95,11 @@ def launch (log_name="", run_time=3, server_isn=None):
           # at most drop the same packet once
           self.dropped_pkts[tcp.seq] = True
           self.dropnext = False
-          log.debug("dropped packet seqno={0}".format(tcp.seq))
+          log.info("dropped packet seq={0}, ack={1}".format(tcp.seq, tcp.ack))
           return True
         else:
           self.dropnext = True
-          log.debug("let packet through seqno={0}".format(tcp.seq))
+          log.info("let packet through seq={0}, ack={1}".format(tcp.seq, tcp.ack))
           return False
 
     topo.get_wire(r1,r2).drop_conditions.append(drop_one_pass_one())

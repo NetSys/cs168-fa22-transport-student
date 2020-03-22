@@ -55,7 +55,7 @@ class Pox(Application):
   POX_PY = '../../pox.py'
 
   def __init__(self, test, tracefile):
-    cmdline = "{0} config={1} tcpip.pcap --node=r1 --no-tx --filename={2}".format(self.POX_PY, test, tracefile)
+    cmdline = "python {0} config={1} tcpip.pcap --node=r1 --no-tx --filename={2}".format(self.POX_PY, test, tracefile)
     super(Pox, self).__init__(cmdline)
 
 class IndTestCase(unittest.TestCase):
@@ -66,14 +66,16 @@ class IndTestCase(unittest.TestCase):
 
     pox = Pox(test, trace)
     pox.start()
-    self.assertTrue(pox.wait_finish())
+    self.assertTrue(pox.wait_finish(),
+        "Test didn't finish in less than 5 seconds. Run this test manually for more details (see spec 3.6.1 for instructions).")
 
     ansi_escape = re.compile(r'\x1B\[[0-?]*[ -/]*[@-~]')
 
-    self.assertEqual(pox.get_retcode(), 0)
+    self.assertEqual(pox.get_retcode(), 0,
+        "Something went wrong while executing test. Run this test manually for more details (see spec 3.6.1 for instructions).")
     output = str(pox.get_stderr())
     output = ansi_escape.sub('', output)
-    self.assertTrue(self.pass_str in output, output)
+    self.assertTrue(self.pass_str in output, "Test failed, the console output was:\n{0}".format(output))
 
 class AutoGrader():
   def __init__(self):

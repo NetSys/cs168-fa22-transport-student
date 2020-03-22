@@ -92,6 +92,7 @@ def launch (log_name="", run_time=3, server_isn=None):
 
         if tcp.payload and not self.dropped:
           self.dropped = True
+          log.info("dropped packet seq={0}, ack={1}".format(tcp.seq, tcp.ack))
           return True
 
         return False

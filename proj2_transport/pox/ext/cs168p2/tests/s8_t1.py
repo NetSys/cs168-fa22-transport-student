@@ -95,8 +95,10 @@ def launch (log_name="", run_time=3, server_isn=None):
         if tcp.ACK:
           self.num_acks += 1
           if self.num_acks > 6:
+            log.info("let packet through seq={0}, ack={1}".format(tcp.seq, tcp.ack))
             return False
           else:
+            log.info("dropped packet seq={0}, ack={1}".format(tcp.seq, tcp.ack))
             return True
 
         return False

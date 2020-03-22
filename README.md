@@ -1,2 +1,2 @@
-# CS 168: Project Code for Students (Fall '18)
+# CS 168: Project Code (Spring '20)
 

@@ -129,7 +129,7 @@ def launch (log_name="", run_time=3, server_isn=None):
         r = random.uniform(0, 1)
         if r <= self.pct:
           self.dropped_pkts[tcp.seq] = True
-          log.error("dropped pkt")
+          log.info("dropped packet seq={0}, ack={1}".format(tcp.seq, tcp.ack))
           return True
 
         return False
