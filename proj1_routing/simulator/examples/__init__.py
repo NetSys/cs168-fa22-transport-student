@@ -1,3 +1,0 @@
-"""
-Various examples and tests
-"""
