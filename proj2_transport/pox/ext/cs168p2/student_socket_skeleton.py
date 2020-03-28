@@ -405,6 +405,8 @@ class RecvQueue(RetxQueue):
     if len(self.q) > 1 and self.q[-2][0] |GT| self.q[-1][0]:
       self.q.sort(key=lambda x: x[0], cmp=compare)
 
+
+
 class StudentUSocket(StudentUSocketBase):
   MIN_RTO = 1  # Seconds
   MAX_RTO = 60 # Seconds
@@ -474,12 +476,13 @@ class StudentUSocket(StudentUSocketBase):
     elif self.state is SYN_SENT:
       self._delete_tcb()
     elif self.state is ESTABLISHED:
-      self.state = FIN_WAIT_1
-      self.fin_ctrl.set_pending()
+      # Complete for Stage 7
+      pass
     elif self.state in (FIN_WAIT_1,FIN_WAIT_2):
       raise RuntimeError("close() is invalid in FIN_WAIT states")
     elif self.state is CLOSE_WAIT:
-      self.fin_ctrl.set_pending(next_state = LAST_ACK)
+      # Complete for Stage 6
+      pass
     elif self.state in (CLOSING,LAST_ACK,TIME_WAIT):
       raise RuntimeError("connecting closing")
     else:
@@ -495,7 +498,7 @@ class StudentUSocket(StudentUSocketBase):
     seg_len = len(payload)
     rcv = self.rcv
     rnxtpwnd = rcv.nxt |PLUS| rcv.wnd
-
+    
     if seg_len == 0:
       if rcv.wnd == 0:
         return seg.seq |EQ| rcv.nxt  # ACKs can be accepted
@@ -533,12 +536,7 @@ class StudentUSocket(StudentUSocketBase):
     self.peer = IPAddr(ip), port
     self.bind(dev.ip_addr, 0)
 
-    rp = self.new_packet(ack=False, syn=True)
-    rp.tcp.seq = self.snd.iss
-    self.log.debug("SYN seq={0}".format(rp.tcp.seq))
-
-    self.tx(rp)
-    self.state = SYN_SENT
+    # Complete for Stage 1
 
   def tx(self, p, retxed=False):
     """
@@ -547,17 +545,16 @@ class StudentUSocket(StudentUSocketBase):
 
     Transmits this packet through POX
     """
-    if not retxed:
-      p.tx_ts = self.stack.now
-
     p.retxed = retxed
 
+    # Complete for Stage 8
+
     if (p.tcp.SYN or p.tcp.FIN or p.tcp.payload) and not retxed:
-      self.retx_queue.push(p)
+      pass
 
-      if p.tcp.payload:
-        self.snd.nxt = self.snd.nxt |PLUS| len(p.tcp.payload)
+      # Complete for Stage 4
 
+    self.log.debug("tx seqno={0}".format(p.tcp.seq))
     self.manager.tx(p)
 
   def rx(self, p):
@@ -578,29 +575,18 @@ class StudentUSocket(StudentUSocketBase):
 
     if self.state is CLOSED:
       return
-    elif self.state is SYN_SENT:
-      self.handle_synsent(seg)
+    # Complete for Stage 1
     elif self.state in (ESTABLISHED, FIN_WAIT_1, FIN_WAIT_2,
                         CLOSE_WAIT, CLOSING, LAST_ACK, TIME_WAIT):
-      # first check seq no
-      # if the segment is not acceptable, send ack and drop it
       if self.acceptable_seg(seg, payload):
-        self.rx_queue.push(p)
+        # Complete for Stage 2
+        pass
+        # Complete for Stage 3
       else:
         self.set_pending_ack()
 
-    while not self.rx_queue.empty():
-      p = self.rx_queue.peek()[1]
-      # if this is a future packet, stop
-      if p.tcp.seq |GT| self.rcv.nxt:
-        self.log.debug("queue has seqno={0}, waiting for={1}".format(p.tcp.seq, self.rcv.nxt))
-        self.set_pending_ack()
-        break
-
-      # select subset of payload that we haven't processed
-      data = p.app[self.rcv.nxt |MINUS| p.tcp.seq:]
-      self.rx_queue.pop()
-      self.handle_accepted_seg(p.tcp, data)
+    # Complete for Stage 3 (check recv queue)
+    # data = packet.app[self.rcv.nxt - packet.tcp.seq:]
 
     self.maybe_send()
 
@@ -633,13 +619,10 @@ class StudentUSocket(StudentUSocketBase):
         self.log.debug("acked SYN of pkt={0}".format(acked_pkts))
 
     if acceptable_ack:
-      self.rcv.nxt = seg.seq |PLUS| 1
-      self.snd.una = seg.ack
+      # Complete for Stage 1
 
       if self.snd.una |GT| self.snd.iss:
-        self.state = ESTABLISHED
-        self.update_window(seg)
-        self.set_pending_ack()
+        pass
 
   def update_rto(self, acked_pkt):
     """
@@ -647,21 +630,9 @@ class StudentUSocket(StudentUSocketBase):
 
     Updates the rto based on rfc 6298.
     """
-    now = self.stack.now
-    rtt = now - acked_pkt.tx_ts
+		# Complete for Stage 9
+		pass
 
-    if not self.srtt:
-      # first measurement
-      self.srtt = rtt
-      self.rttvar = rtt / 2.0
-    else:
-      self.rttvar = (1 - self.beta) * self.rttvar + self.beta * abs(self.srtt - rtt)
-      self.srtt = (1 - self.alpha) * self.srtt + self.alpha * rtt
-
-    self.rto = self.srtt + max(self.G, self.K * self.rttvar)
-    self.rto = min(self.MAX_RTO, max(self.MIN_RTO, self.rto))  # min 1 sec, max 60 secs
-
-    self.log.debug("rto={0}, rtt={1}, srtt={2}, rttvar={3}".format(self.rto, rtt, self.srtt, self.rttvar))
 
   def handle_accepted_payload(self, payload):
     """
@@ -676,11 +647,7 @@ class StudentUSocket(StudentUSocketBase):
     if len(payload) > rcv.wnd:
       payload = payload[:rcv.wnd] # Chop to size!
 
-    rcv.nxt = rcv.nxt |PLUS| len(payload)
-    rcv.wnd -= len(payload)
-
-    self.rx_data += payload
-    self.set_pending_ack()
+    # Complete por Stage 2
 
   def update_window(self, seg):
     """
@@ -689,7 +656,8 @@ class StudentUSocket(StudentUSocketBase):
     Updates various parameters of the send sequence space related
     to the advertised window
     """
-    self.snd.wnd = seg.win
+    # Complete for Stage 5
+    self.snd.wnd = self.TX_DATA_MAX # remove w/ implemented
     self.snd.wl1 = seg.seq
     self.snd.wl2 = seg.ack
 
@@ -700,8 +668,12 @@ class StudentUSocket(StudentUSocketBase):
     Handles an ack we haven't seen so far, cleared by
     acceptable_seg()
     """
-    self.snd.una = seg.ack
-    acked_pkts = self.retx_queue.pop_upto(seg.ack)
+    # Complete Stage 4
+    acked_pkts = [] # remove when implemented
+
+    # Complete Stage 8
+
+    # Complete Stage 9
 
     for (ackno, p) in acked_pkts:
       if not p.retxed:
@@ -718,19 +690,9 @@ class StudentUSocket(StudentUSocketBase):
       return
 
     self.log.info("Got FIN!")
-    self.rcv.nxt = self.rcv.nxt |PLUS| 1
-    self.set_pending_ack()
+    # Complete for Stage 6
 
-    if self.state is ESTABLISHED:
-      self.state = CLOSE_WAIT
-    elif self.state is FIN_WAIT_1:
-      if self.fin_ctrl.acks_our_fin(seg.ack):
-        self.start_timer_timewait()
-      else:
-        self.state = CLOSING
-    elif self.state in (FIN_WAIT_2, TIME_WAIT):
-      # TIME_WAIT missing from student skeleton
-      self.start_timer_timewait()
+    # Complete for Stage 7
 
   def check_ack(self, seg):
     """
@@ -745,32 +707,23 @@ class StudentUSocket(StudentUSocketBase):
 
     # fifth, check ACK field
     if self.state in (ESTABLISHED, FIN_WAIT_1, FIN_WAIT_2, CLOSE_WAIT, CLOSING):
-      if snd.una |LT| seg.ack and seg.ack |LE| snd.nxt:
-        self.handle_accepted_ack(seg)
-      elif seg.ack |LT| snd.una:
-        # old ack, ignore
-        continue_after_ack = False
-      elif seg.ack |GT| snd.nxt:
-        # peer acked something not yet sent, drop seg
-        self.set_pending_ack()
-        return False
+      # Complete Stage 4
 
       if snd.una |LE| seg.ack and seg.ack |LE| snd.nxt:
-        if snd.wl1 |LT| seg.seq or (snd.wl1 |EQ| seg.seq and snd.wl2 |LE| seg.ack):
+        if snd.wl1 |LT| seg.seq or (snd.wl1 == seg.seq and snd.wl2 |LE| seg.ack):
           self.update_window(seg)
 
+    # Complete for Stage 6
+    # Complete for Stage 7
     if self.state == FIN_WAIT_1:
-      if self.fin_ctrl.acks_our_fin(seg.ack):
-        self.state = FIN_WAIT_2
+      pass
     elif self.state == FIN_WAIT_2:
       if self.retx_queue.empty():
         self.set_pending_ack()
     elif self.state == CLOSING:
-      if self.fin_ctrl.acks_our_fin(seg.ack):
-        self.start_timer_timewait()
+      pass
     elif self.state == LAST_ACK:
-      if self.fin_ctrl.acks_our_fin(seg.ack):
-        self._delete_tcb()
+      pass
     elif self.state == TIME_WAIT:
       # restart the 2 msl timeout
       self.set_pending_ack()
@@ -797,10 +750,7 @@ class StudentUSocket(StudentUSocketBase):
     if not continue_after_ack:
       return
 
-    # sixth, skip
-    # seventh, process text
-    if self.state in (ESTABLISHED, FIN_WAIT_1, FIN_WAIT_2) and len(payload) > 0:
-      self.handle_accepted_payload(payload)
+    # Complete for Stage 2
 
     # eight, check FIN bit
     if seg.FIN:
@@ -817,15 +767,10 @@ class StudentUSocket(StudentUSocketBase):
     snd = self.snd
     num_pkts = 0
     bytes_sent = 0
-    inflight = snd.nxt |MINUS| snd.una
-    remaining = min(snd.wnd |MINUS| inflight, len(self.tx_data))
+    # Complete for Stage 4
+    remaining = 0
     while remaining > 0:
-      size = min(remaining, self.mss)
-      remaining -= size
-      payload = self.tx_data[:size]
-      self.tx_data = self.tx_data[size:]
 
-      self.tx(self.new_packet(data=payload))
       num_pkts += 1
       bytes_sent += len(payload)
 
@@ -851,19 +796,14 @@ class StudentUSocket(StudentUSocketBase):
     Check retx_queue in order (in seq num increasing order). Retransmit any packet
     that has been in the queue longer than self.rto
     """
-    if self.retx_queue.empty():
-      return
+    # Complete for Stage 8
 
-    now = self.stack.now
-    p = self.retx_queue.get_earliest_pkt()[1]
-    time_in_queue = now - p.tx_ts
+    time_in_queue = 0
     if time_in_queue > self.rto:
       self.log.debug("earliest packet seqno={0} rto={1} being rtxed".format(p.tcp.seq, self.rto))
       self.tx(p, retxed=True)
 
-      # 6298 p4
-      self.rto = min(self.MAX_RTO, self.rto * 2)
-      # TODO: special case of SYN
+      # Complete for Stage 9
 
   def set_pending_ack(self):
     """
