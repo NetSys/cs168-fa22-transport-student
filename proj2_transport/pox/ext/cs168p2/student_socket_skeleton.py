@@ -476,12 +476,16 @@ class StudentUSocket(StudentUSocketBase):
     elif self.state is SYN_SENT:
       self._delete_tcb()
     elif self.state is ESTABLISHED:
-      # Complete for Stage 7
+      ## Complete for Stage 7 ##
+
+      ##    End of Stage 7    ##
       pass
     elif self.state in (FIN_WAIT_1,FIN_WAIT_2):
       raise RuntimeError("close() is invalid in FIN_WAIT states")
     elif self.state is CLOSE_WAIT:
-      # Complete for Stage 6
+      ## Complete for Stage 6 ##
+
+      ##    End of Stage 6    ##
       pass
     elif self.state in (CLOSING,LAST_ACK,TIME_WAIT):
       raise RuntimeError("connecting closing")
@@ -536,7 +540,9 @@ class StudentUSocket(StudentUSocketBase):
     self.peer = IPAddr(ip), port
     self.bind(dev.ip_addr, 0)
 
-    # Complete for Stage 1
+    ## Complete for Stage 1 ##
+
+    ##    End of Stage 1    ##
 
   def tx(self, p, retxed=False):
     """
@@ -547,13 +553,19 @@ class StudentUSocket(StudentUSocketBase):
     """
     p.retxed = retxed
 
-    # Complete for Stage 8
+    ## Complete for Stage 8 ##
+    # in Stage 8, you may need to modify what you implemented in Stage 4.
+
 
     if (p.tcp.SYN or p.tcp.FIN or p.tcp.payload) and not retxed:
+
+      ## Complete for Stage 4 ##
+
+      ##    End of Stage 4    ##
       pass
 
-      # Complete for Stage 4
-
+    ##    End of Stage 8    ##
+    
     self.log.debug("tx seqno={0}".format(p.tcp.seq))
     self.manager.tx(p)
 
@@ -575,18 +587,29 @@ class StudentUSocket(StudentUSocketBase):
 
     if self.state is CLOSED:
       return
-    # Complete for Stage 1
+    ## Complete for Stage 1 ##
+
+    ##    End of Stage 1    ##
     elif self.state in (ESTABLISHED, FIN_WAIT_1, FIN_WAIT_2,
                         CLOSE_WAIT, CLOSING, LAST_ACK, TIME_WAIT):
       if self.acceptable_seg(seg, payload):
-        # Complete for Stage 2
+        ## Complete for Stage 2 ##
+        
+        ##    End of Stage 2    ##
         pass
-        # Complete for Stage 3
+        ## Complete for Stage 3 ##
+        # you may need to disable Stage 2's code.
+
+        ##    End of Stage 3    ##
       else:
         self.set_pending_ack()
 
-    # Complete for Stage 3 (check recv queue)
-    # data = packet.app[self.rcv.nxt - packet.tcp.seq:]
+     
+    ## Complete for Stage 3 ##
+    # checking recv queue
+    # Hint: data = packet.app[self.rcv.nxt |MINUS| packet.tcp.seq:]
+
+    ##    End of Stage 3    ##
 
     self.maybe_send()
 
@@ -619,10 +642,12 @@ class StudentUSocket(StudentUSocketBase):
         self.log.debug("acked SYN of pkt={0}".format(acked_pkts))
 
     if acceptable_ack:
-      # Complete for Stage 1
+      ## Complete for Stage 1 ##
 
       if self.snd.una |GT| self.snd.iss:
         pass
+
+      ##    End of Stage 1    ##
 
   def update_rto(self, acked_pkt):
     """
@@ -630,13 +655,17 @@ class StudentUSocket(StudentUSocketBase):
 
     Updates the rto based on rfc 6298.
     """
-		# Complete for Stage 9
-		pass
+
+    ## Complete for Stage 9 ##
+
+    ##    End of Stage 9    ##
+
+    pass
 
 
   def handle_accepted_payload(self, payload):
     """
-    payload is the TCP payload, its type is string
+    payload is the TCP payload, its type is bytearray
 
     Handles a payload of a segment that has been cleared by
     acceptable_seg(), and not dropped by check_ack()
@@ -647,7 +676,9 @@ class StudentUSocket(StudentUSocketBase):
     if len(payload) > rcv.wnd:
       payload = payload[:rcv.wnd] # Chop to size!
 
-    # Complete por Stage 2
+    ## Complete for Stage 2 ##
+
+    ##    End of Stage 2    ##
 
   def update_window(self, seg):
     """
@@ -656,10 +687,13 @@ class StudentUSocket(StudentUSocketBase):
     Updates various parameters of the send sequence space related
     to the advertised window
     """
-    # Complete for Stage 5
-    self.snd.wnd = self.TX_DATA_MAX # remove w/ implemented
+
+    ## Complete for Stage 5 ##
+    self.snd.wnd = self.TX_DATA_MAX # remove when implemented
     self.snd.wl1 = seg.seq
     self.snd.wl2 = seg.ack
+
+    ##    End of Stage 5    ##
 
   def handle_accepted_ack(self, seg):
     """
@@ -668,16 +702,24 @@ class StudentUSocket(StudentUSocketBase):
     Handles an ack we haven't seen so far, cleared by
     acceptable_seg()
     """
-    # Complete Stage 4
+    ## Complete for Stage 4 ##
+
+    ##    End of Stage 4    ##
+
+
+    ## Complete for Stage 8 ##
+
+    ##    End of Stage 8    ##
+
+
+    ## Complete for Stage 9 ##
+
     acked_pkts = [] # remove when implemented
-
-    # Complete Stage 8
-
-    # Complete Stage 9
-
     for (ackno, p) in acked_pkts:
       if not p.retxed:
         self.update_rto(p)
+    
+    ##    End of Stage 9    ##
 
   def handle_accepted_fin(self, seg):
     """
@@ -690,9 +732,15 @@ class StudentUSocket(StudentUSocketBase):
       return
 
     self.log.info("Got FIN!")
-    # Complete for Stage 6
 
-    # Complete for Stage 7
+    ## Complete for Stage 6 ##
+
+    ##    End of Stage 6    ##
+
+
+    ## Complete for Stage 7 ##
+
+    ##    End of Stage 7    ##
 
   def check_ack(self, seg):
     """
@@ -707,7 +755,9 @@ class StudentUSocket(StudentUSocketBase):
 
     # fifth, check ACK field
     if self.state in (ESTABLISHED, FIN_WAIT_1, FIN_WAIT_2, CLOSE_WAIT, CLOSING):
-      # Complete Stage 4
+      ## Complete for Stage 4 ##
+
+      ##    End of Stage 4    ##
 
       if snd.una |LE| seg.ack and seg.ack |LE| snd.nxt:
         if snd.wl1 |LT| seg.seq or (snd.wl1 == seg.seq and snd.wl2 |LE| seg.ack):
@@ -728,6 +778,9 @@ class StudentUSocket(StudentUSocketBase):
       # restart the 2 msl timeout
       self.set_pending_ack()
       self.start_timer_timewait()
+
+    ##    End of Stage 6    ##
+    ##    End of Stage 7    ##
 
     return continue_after_ack
 
@@ -750,7 +803,9 @@ class StudentUSocket(StudentUSocketBase):
     if not continue_after_ack:
       return
 
-    # Complete for Stage 2
+    ## Complete for Stage 2 ##
+
+    ##    End of Stage 2    ##
 
     # eight, check FIN bit
     if seg.FIN:
@@ -767,14 +822,16 @@ class StudentUSocket(StudentUSocketBase):
     snd = self.snd
     num_pkts = 0
     bytes_sent = 0
-    # Complete for Stage 4
-    remaining = 0
-    while remaining > 0:
 
-      num_pkts += 1
-      bytes_sent += len(payload)
+    ## Complete for Stage 4 ##
+    # remaining = 0
+    # while remaining > 0:
 
-    self.log.debug("sent {0} packets with {1} bytes total".format(num_pkts, bytes_sent))
+    #   num_pkts += 1
+    #   bytes_sent += len(payload)
+
+    # self.log.debug("sent {0} packets with {1} bytes total".format(num_pkts, bytes_sent))
+    ##    End of Stage 4    ##
 
   def start_timer_timewait(self):
     """
@@ -796,14 +853,19 @@ class StudentUSocket(StudentUSocketBase):
     Check retx_queue in order (in seq num increasing order). Retransmit any packet
     that has been in the queue longer than self.rto
     """
-    # Complete for Stage 8
 
-    time_in_queue = 0
+    ## Complete for Stage 8 ##
+    time_in_queue = 0 # modify when implemented
+
+    ##    End of Stage 8    ##
+
     if time_in_queue > self.rto:
       self.log.debug("earliest packet seqno={0} rto={1} being rtxed".format(p.tcp.seq, self.rto))
       self.tx(p, retxed=True)
 
-      # Complete for Stage 9
+      ## Complete for Stage 9 ##
+
+      ##    End of Stage 9    ##
 
   def set_pending_ack(self):
     """
