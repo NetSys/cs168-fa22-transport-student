@@ -763,8 +763,8 @@ class StudentUSocket(StudentUSocketBase):
         if snd.wl1 |LT| seg.seq or (snd.wl1 == seg.seq and snd.wl2 |LE| seg.ack):
           self.update_window(seg)
 
-    # Complete for Stage 6
-    # Complete for Stage 7
+    ## Complete for Stage 6 ##
+    ## Complete for Stage 7 ##
     if self.state == FIN_WAIT_1:
       pass
     elif self.state == FIN_WAIT_2:
