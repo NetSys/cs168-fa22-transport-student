@@ -55,7 +55,7 @@ class Pox(Application):
   POX_PY = '../../pox.py'
 
   def __init__(self, test, tracefile):
-    cmdline = "python {0} config={1} tcpip.pcap --node=r1 --no-tx --filename={2}".format(self.POX_PY, test, tracefile)
+    cmdline = "{0} config={1} tcpip.pcap --node=r1 --no-tx --filename={2}".format(self.POX_PY, test, tracefile)
     super(Pox, self).__init__(cmdline)
 
 class IndTestCase(unittest.TestCase):
