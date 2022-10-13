@@ -908,5 +908,5 @@ class StudentUSocket(StudentUSocketBase):
 
 # Project 2 Survey
 def proj2_survey():
-  secret_word = ""
+  secret_word = "udp"
   return secret_word
