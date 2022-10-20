@@ -1,3 +1,7 @@
 .*
 *.pyc
 *.js
+proj2_transport/pox/ext/poxdesk/qx
+proj2_transport/pox/ext/cs168p2/trace
+proj2_transport_python3/pox/ext/poxdesk/qx
+proj2_transport_python3/pox/ext/cs168p2/trace
