@@ -883,8 +883,3 @@ class StudentUSocket(StudentUSocketBase):
     self.ack_pending = False
     self.tx(self.new_packet())
 
-# Project 2 Survey
-def proj2_survey():
-  import hashlib
-  secret_word = ""
-  return hashlib.sha256(secret_word.encode('utf-8')).hexdigest()

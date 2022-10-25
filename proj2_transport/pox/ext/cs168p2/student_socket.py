@@ -906,7 +906,3 @@ class StudentUSocket(StudentUSocketBase):
     self.ack_pending = False
     self.tx(self.new_packet())
 
-# Project 2 Survey
-def proj2_survey():
-  secret_word = "udp"
-  return secret_word
