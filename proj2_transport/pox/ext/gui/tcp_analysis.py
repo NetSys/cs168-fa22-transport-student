@@ -158,7 +158,7 @@ class Record (object):
             break
           o -= 1
       except Exception as e:
-        print e
+        print(e)
         pass
 
   def __len__ (self):

@@ -275,6 +275,8 @@ class HandshakeOpenFlowHandlers (OpenFlowHandlers):
   # If False, don't send a switch desc request when connecting
   request_description = True
 
+  allowed_versions = (0x01,)
+
   def __init__ (self):
     self._features_request_sent = False
     self._barrier = None
@@ -325,6 +327,12 @@ class HandshakeOpenFlowHandlers (OpenFlowHandlers):
       con.description = msg.body
 
   def handle_FEATURES_REPLY (self, con, msg):
+    if msg.version not in self.allowed_versions:
+      # It's likely you won't see this message because the other side will
+      # not have sent a features reply if it doesn't support OF 1.0.
+      con.err("OpenFlow version 0x%02x not supported" % (msg.version,))
+      con.disconnect()
+      return
     connecting = con.connect_time == None
     con.features = msg
     con.original_ports._ports = set(msg.ports)
@@ -454,7 +462,7 @@ class DeferredSender (threading.Thread):
     while core.running:
 
       with self._lock:
-        cons = self._dataForConnection.keys()
+        cons = list(self._dataForConnection.keys())
 
       rlist, wlist, elist = select.select([self._waker], cons, cons, 5)
       if not core.running: break
@@ -480,9 +488,9 @@ class DeferredSender (threading.Thread):
                   alldata[0] = data[l:]
                   break
                 del alldata[0]
-              except socket.error as (errno, strerror):
-                if errno != EAGAIN:
-                  con.msg("DeferredSender/Socket error: " + strerror)
+              except socket.error as e:
+                if e.errno != EAGAIN:
+                  con.msg("DeferredSender/Socket error: " + e.strerror)
                   con.disconnect()
                   del self._dataForConnection[con]
                 break
@@ -552,11 +560,11 @@ class OFCaptureSocket (CaptureSocket):
     self._rbuf += buf
     l = len(self._rbuf)
     while l > 4:
-      if ord(self._rbuf[0]) != of.OFP_VERSION:
+      if self._rbuf[0] != of.OFP_VERSION:
         log.error("Bad OpenFlow version while trying to capture trace")
         self._enabled = False
         break
-      packet_length = ord(self._rbuf[2]) << 8 | ord(self._rbuf[3])
+      packet_length = self._rbuf[2] << 8 | self._rbuf[3]
       if packet_length > l: break
       try:
         self._writer.write(False, self._rbuf[:packet_length])
@@ -571,11 +579,11 @@ class OFCaptureSocket (CaptureSocket):
     self._sbuf += buf
     l = len(self._sbuf)
     while l > 4:
-      if ord(self._sbuf[0]) != of.OFP_VERSION:
+      if self._sbuf[0] != of.OFP_VERSION:
         log.error("Bad OpenFlow version while trying to capture trace")
         self._enabled = False
         break
-      packet_length = ord(self._sbuf[2]) << 8 | ord(self._sbuf[3])
+      packet_length = self._sbuf[2] << 8 | self._sbuf[3]
       if packet_length > l: break
       try:
         self._writer.write(True, self._sbuf[:packet_length])
@@ -637,7 +645,7 @@ class PortCollection (object):
     return len(self.keys())
 
   def __getitem__ (self, index):
-    if isinstance(index, (int,long)):
+    if isinstance(index, int):
       for p in self._ports:
         if p.port_no == index:
           return p
@@ -876,13 +884,13 @@ class Connection (EventMixin):
         self.msg("Didn't send complete buffer.")
         data = data[l:]
         deferredSender.send(self, data)
-    except socket.error as (errno, strerror):
-      if errno == EAGAIN:
+    except socket.error as e:
+      if e.errno == EAGAIN:
         self.msg("Out of send buffer space.  " +
                  "Consider increasing SO_SNDBUF.")
         deferredSender.send(self, data)
       else:
-        self.msg("Socket error: " + strerror)
+        self.msg("Socket error: " + e.strerror)
         self.disconnect(defer_event=True)
 
   def read (self):
@@ -905,21 +913,21 @@ class Connection (EventMixin):
     offset = 0
     while buf_len - offset >= 8: # 8 bytes is minimum OF message size
       # We pull the first four bytes of the OpenFlow header off by hand
-      # (using ord) to find the version/length/type so that we can
-      # correctly call libopenflow to unpack it.
+      # to find the version/length/type so that we can correctly call
+      # libopenflow to unpack it.
 
-      ofp_type = ord(self.buf[offset+1])
+      ofp_type = self.buf[offset+1]
 
-      if ord(self.buf[offset]) != of.OFP_VERSION:
+      if self.buf[offset] != of.OFP_VERSION:
         if ofp_type == of.OFPT_HELLO:
           # We let this through and hope the other side switches down.
           pass
         else:
           log.warning("Bad OpenFlow version (0x%02x) on connection %s"
-                      % (ord(self.buf[offset]), self))
+                      % (self.buf[offset], self))
           return False # Throw connection away
 
-      msg_length = ord(self.buf[offset+2]) << 8 | ord(self.buf[offset+3])
+      msg_length = self.buf[offset+2] << 8 | self.buf[offset+3]
 
       if buf_len - offset < msg_length: break
 
@@ -988,7 +996,7 @@ class Connection (EventMixin):
 def wrap_socket (new_sock):
   fname = datetime.datetime.now().strftime("%Y-%m-%d-%I%M%p")
   fname += "_" + new_sock.getpeername()[0].replace(".", "_")
-  fname += "_" + `new_sock.getpeername()[1]` + ".pcap"
+  fname += "_" + repr(new_sock.getpeername()[1]) + ".pcap"
   pcapfile = file(fname, "w")
   try:
     new_sock = OFCaptureSocket(new_sock, pcapfile,
@@ -1049,13 +1057,13 @@ class OpenFlow_01_Task (Task):
     listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     try:
       listener.bind((self.address, self.port))
-    except socket.error as (errno, strerror):
+    except socket.error as e:
       log.error("Error %i while binding %s:%s: %s",
-                errno, self.address, self.port, strerror)
-      if errno == EADDRNOTAVAIL:
+                e.errno, self.address, self.port, e.strerror)
+      if e.errno == EADDRNOTAVAIL:
         log.error(" You may be specifying a local address which is "
                   "not assigned to any interface.")
-      elif errno == EADDRINUSE:
+      elif e.errno == EADDRINUSE:
         log.error(" You may have another controller running.")
         log.error(" Use openflow.of_01 --port=<port> to run POX on "
                   "another port.")
@@ -1123,7 +1131,7 @@ class OpenFlow_01_Task (Task):
                 new_sock = wrap_socket(new_sock)
               new_sock.setblocking(0)
               # Note that instantiating a Connection object fires a
-              # ConnectionUp event (after negotation has completed)
+              # ConnectionUp event (after negotiation has completed)
               newcon = Connection(new_sock)
               sockets.append( newcon )
               #print str(newcon) + " connected"

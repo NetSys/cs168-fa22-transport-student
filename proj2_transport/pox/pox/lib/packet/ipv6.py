@@ -47,12 +47,12 @@ a start.
 """
 
 import struct
-from packet_utils import *
-from tcp import *
-from udp import *
-from icmpv6 import *
+from .packet_utils import *
+from .tcp import *
+from .udp import *
+from .icmpv6 import *
 
-from packet_base import packet_base
+from .packet_base import packet_base
 
 from pox.lib.addresses import IPAddr6
 from pox.lib.util import init_helper
@@ -97,7 +97,7 @@ class NormalExtensionHeader (ExtensionHeader):
     Returns the packed length
     """
     l = self.payload_length + 2
-    return ((l + 7) / 8) - 1
+    return ((l + 7) // 8) - 1
 
   @classmethod
   def unpack_new (cls, raw, offset = 0, max_length = None):
@@ -286,7 +286,7 @@ class ipv6 (packet_base):
     self.flow  = 0
     self.payload_length = 0
     self.next_header_type = None
-    self.hop_limit = 0
+    self.hop_limit = 127
     self.srcip = IPAddr6.UNDEFINED
     self.dstip = IPAddr6.UNDEFINED
     self.extension_headers = []

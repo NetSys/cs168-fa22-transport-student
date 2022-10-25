@@ -26,7 +26,7 @@ class JSONDestreamer (object):
   import json
   decoder = json.JSONDecoder()
   def __init__ (self, callback = None):
-    self._buf = ''
+    self._buf = b''
     self.callback = callback if callback else self.rx
 
   def push (self, data):
@@ -35,7 +35,7 @@ class JSONDestreamer (object):
     self._buf += data
     try:
       while len(self._buf) > 0:
-        r,off = self.decoder.raw_decode(self._buf)
+        r,off = self.decoder.raw_decode(self._buf.decode())
 
         self._buf = self._buf[off:].lstrip()
         self.callback(r)
@@ -44,7 +44,7 @@ class JSONDestreamer (object):
 
   def rx (self, data):
     import json
-    print "Recv:", json.dumps(data, indent=4)
+    print("Recv:", json.dumps(data, indent=4))
 
 jd = JSONDestreamer()
 done = False
@@ -53,7 +53,7 @@ def reader (socket):
   global done
   while True:
     d = socket.recv(1024)
-    if d == "":
+    if d == b"":
       done = True
       break
     jd.push(d)
@@ -66,8 +66,8 @@ def channel (ch):
 import readline
 
 def main (addr = "127.0.0.1", port = 7790):
-  print "Connecting to %s:%i" % (addr,port)
   port = int(port)
+  print("Connecting to %s:%i" % (addr,port))
 
   sock = socket.create_connection((addr, port))
 
@@ -78,7 +78,7 @@ def main (addr = "127.0.0.1", port = 7790):
   while not done:
     try:
       #print ">",
-      m = raw_input()
+      m = input()
       if len(m) == 0: continue
       m = eval(m)
       if not isinstance(m, dict):

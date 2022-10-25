@@ -60,6 +60,11 @@ class basics_test (unittest.TestCase):
   def _init_action_nx_action_pop_mpls (self, cls):
     return cls(ethertype=101)
 
+  def _init_action_nx_action_mpls_label (self, cls):
+    return cls(label=0)
+
+  def _init_action_nx_action_mpls_tc (self, cls):
+    return cls(tc=0)
 
   def test_unpack_weird_header (self):
     """
@@ -93,7 +98,7 @@ class basics_test (unittest.TestCase):
     for name in dir(nx):
       a = getattr(nx, name)
       if not nx._issubclass(a, of.ofp_action_vendor_base): continue
-      print "Trying",name,"...",
+      print("Trying",name,"...", end=' ')
       init = getattr(self, "_init_action_" + name, lambda c: c())
       original = init(a)
       original_packed = original.pack()
@@ -108,7 +113,7 @@ class basics_test (unittest.TestCase):
 
       self.assertEqual(original, unoriginal,
                        "Pack/Unpack failed for " + name)
-      print "Success!"
+      print("Success!")
 
 
   def test_nxm_ip (self):
@@ -118,7 +123,7 @@ class basics_test (unittest.TestCase):
     def try_bad ():
       e = nx.NXM_OF_IP_SRC(IPAddr("192.168.56.1"),IPAddr("255.255.255.0"))
       e.pack()
-    self.assertRaisesRegexp(AssertionError, '^nonzero masked bits$', 
+    self.assertRaisesRegexp(AssertionError, '^nonzero masked bits$',
         try_bad)
 
 
@@ -156,8 +161,8 @@ class basics_test (unittest.TestCase):
     good = """00 0c 00 00 08 02 00 00  00 00 08 02 00 00
               00 30 00 00 04 06 00 00  00 00 02 06 00 00
               10 10 00 00 00 02 00 00""".split()
-    good = ''.join([chr(int(x,16)) for x in good])
-    self.assertEqual(good, ''.join(x.pack() for x in learn.spec))
+    good = bytes(int(x,16) for x in good)
+    self.assertEqual(good, b''.join(x.pack() for x in learn.spec))
 
 
   def test_match_pack_unpack (self):
@@ -179,6 +184,8 @@ class basics_test (unittest.TestCase):
       if issubclass(nxm_class, nx._nxm_numeric_entry):
         value = 0x0a
         mask  = 0x0f
+      elif issubclass(nxm_class, nx._nxm_numeric):
+        value = 0x0a
       elif issubclass(nxm_class, nx._nxm_raw):
         value = 'aabb'
         # Currently never check mask for raw

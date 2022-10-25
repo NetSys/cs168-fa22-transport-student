@@ -57,11 +57,12 @@ def _MLE (s, t):
 
 def _MGE (t, s):
   return 0 <= (t |MINUS| s) < 0x80000000
+  #return ((t |MINUS| s) >= 0 and (t |MINUS| s) < 0x80000000)
 
 _make_u32_binary_op("PLUS", operator.add)
 _make_u32_binary_op("MINUS", operator.sub)
 _make_u32_binary_op("TIMES", operator.mul)
-_make_u32_binary_op("DIVIDED_BY", operator.div)
+_make_u32_binary_op("DIVIDED_BY", operator.truediv)
 _make_u32_binary_op("EQ", operator.eq)
 _make_u32_binary_op("NE", operator.ne)
 _make_u32_binary_op("GT", _MGT)

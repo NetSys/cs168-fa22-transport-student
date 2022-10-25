@@ -25,7 +25,7 @@ uses them to populate and manipulate Topology.
 import itertools
 
 from pox.lib.revent import *
-import libopenflow_01 as of
+from . import libopenflow_01 as of
 from pox.openflow import *
 from pox.core import core
 from pox.topology.topology import *
@@ -260,7 +260,7 @@ class OpenFlowSwitch (EventMixin, Switch):
     event.halt = False
 
   def findPortForEntity (self, entity):
-    for p in self.ports.itervalues():
+    for p in self.ports.values():
       if entity in p:
         return p
     return None
@@ -381,15 +381,15 @@ class OFSyncFlowTable (EventMixin):
     if clear:
       self._pending_barrier_to_ops = {}
       self._pending_op_to_barrier = {}
-      self._pending = filter(lambda(op): op[0] == OFSyncFlowTable.ADD,
-                             self._pending)
+      self._pending = [op for op in self._pending
+                       if op[0] == OFSyncFlowTable.ADD]
 
       self.switch.send(of.ofp_flow_mod(command=of.OFPFC_DELETE,
                                        match=of.ofp_match()))
       self.switch.send(of.ofp_barrier_request())
 
-      todo = map(lambda(e): (OFSyncFlowTable.ADD, e),
-                 self.flow_table.entries) + self._pending
+      todo = [(OFSyncFlowTable.ADD, e)
+              for e in self.flow_table.entries] + self._pending
     else:
       todo = [op for op in self._pending
               if op not in self._pending_op_to_barrier

@@ -27,7 +27,7 @@ def launch (log_name="test", server_isn=None):
 
     def get_client_socket ():
       try:
-        return next(iter(c1.stack.socket_manager.peered.itervalues()))
+        return next(iter(c1.stack.socket_manager.peered.values()))
       except Exception:
         return None
 

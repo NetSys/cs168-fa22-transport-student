@@ -26,9 +26,9 @@ the TCP versions.
 
 from pox.lib.recoco import Lock, task_function, CallBlocking
 from pox.core import core
-import tcp_sockets
-import units
-from recoco_sockets import SimpleReSocketApp
+from . import tcp_sockets
+from . import units
+from . recoco_sockets import SimpleReSocketApp
 
 import datetime
 import subprocess

@@ -9,11 +9,12 @@ from tcpip.tcp_sockets import CLOSED, LISTEN, SYN_RECEIVED, ESTABLISHED, \
                               SYN_SENT, FIN_WAIT_1, FIN_WAIT_2, CLOSING, \
                               TIME_WAIT, CLOSE_WAIT, LAST_ACK
 
-from modulo_math import *
+from . modulo_math import *
 
 from socket import SHUT_RD, SHUT_WR, SHUT_RDWR
 import random
 import inspect
+import functools
 
 """
 Partially implements following RFCs:
@@ -197,7 +198,7 @@ class StudentUSocketBase(object):
       if remaining < len(data):
         data = data[:remaining]
 
-      self.tx_data += data
+      self.tx_data += data.encode('ascii')
       if not wait:
         self.maybe_send()
 
@@ -392,9 +393,9 @@ class RecvQueue(RetxQueue):
     sequence number order.
     """
     def compare(x, y):
-      if x == y:
+      if x[0] == y[0]:
         return 0
-      elif x |LE| y:
+      elif x[0] |LE| y[0]:
         return -1
       else:
         return 1
@@ -403,7 +404,7 @@ class RecvQueue(RetxQueue):
 
     # if new packet is out of order
     if len(self.q) > 1 and self.q[-2][0] |GT| self.q[-1][0]:
-      self.q.sort(key=lambda x: x[0], cmp=compare)
+      self.q.sort(key=functools.cmp_to_key(compare))
 
 class StudentUSocket(StudentUSocketBase):
   MIN_RTO = 1  # Seconds

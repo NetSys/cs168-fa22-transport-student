@@ -22,7 +22,7 @@ from pox.lib.recoco import Lock
 import heapq
 from pox.core import core
 import pox.lib.recoco as recoco
-from units import Infinity
+from . units import Infinity
 
 
 log = core.getLogger()
@@ -335,7 +335,7 @@ class VirtualTimeTask (recoco.Task):
   def run (self):
     time = self.time
     while not time._halted:
-      for _ in xrange(time.events_per_cycle):
+      for _ in range(time.events_per_cycle):
         if not time._do_one_event(): break
 
       if time._halted: return

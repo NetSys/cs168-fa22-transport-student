@@ -30,10 +30,40 @@ import time
 import socket
 import collections
 
+from pox.lib.iter import first_of
+
 
 #FIXME: ugh, why can't I make importing pox.core work here?
 import logging
 log = logging.getLogger("util")
+
+
+class ClassicCmp (object):
+  """
+  Helper for porting Python2 __cmp__ functions to Python 3
+
+  Override _classic__cmp__ to change how it behaves (really, you should
+  just rename an old __cmp__ to _classic__cmp__).
+  """
+
+  def __lt__ (self, other):
+    return self._classic__cmp__(other) < 0
+
+  def __gt__ (self, other):
+    return self._classic__cmp__(other) > 0
+
+  def __le__ (self, other):
+    return self._classic__cmp__(other) <= 0
+
+  def __gt__ (self, other):
+    return self._classic__cmp__(other) >= 0
+
+  def __eq__ (self, other):
+    return self._classic__cmp__(other) == 0
+
+  def __ne__ (self, other):
+    return self._classic__cmp__(other) != 0
+
 
 
 class DirtyList (list):
@@ -200,13 +230,13 @@ def dpid_to_str (dpid, alwaysLong = False):
   """
   Convert a DPID from a long into into the canonical string form.
   """
-  if type(dpid) is long or type(dpid) is int:
+  if type(dpid) is int:
     # Not sure if this is right
     dpid = struct.pack('!Q', dpid)
 
   assert len(dpid) == 8
 
-  r = '-'.join(['%02x' % (ord(x),) for x in dpid[2:]])
+  r = '-'.join(['%02x' % (x,) for x in dpid[2:]])
 
   if alwaysLong or dpid[0:2] != (b'\x00'*2):
     r += '|' + str(struct.unpack('!H', dpid[0:2])[0])
@@ -238,7 +268,7 @@ def assert_type(name, obj, types, none_ok=True):
   for cls in types:
     if isinstance(obj, cls):
       return True
-  allowed_types = "|".join(map(lambda x: str(x), types))
+  allowed_types = "|".join(str(x) for x in types)
   stack = traceback.extract_stack()
   stack_msg = "Function call %s() in %s:%d" % (stack[-2][2],
                                                stack[-3][0], stack[-3][1])
@@ -255,7 +285,7 @@ def init_helper (obj, kw):
   Inside a class's __init__, this will copy keyword arguments to fields
   of the same name.  See libopenflow for an example.
   """
-  for k,v in kw.iteritems():
+  for k,v in kw.items():
     if not hasattr(obj, k):
       raise TypeError(obj.__class__.__name__ + " constructor got "
       + "unexpected keyword argument '" + k + "'")
@@ -281,7 +311,7 @@ def make_pinger ():
 
     def ping (self):
       if os is None: return #TODO: Is there a better fix for this?
-      os.write(self._w, ' ')
+      os.write(self._w, b' ')
 
     def fileno (self):
       return self._r
@@ -451,11 +481,11 @@ def hexdump (data):
   """
   Converts raw data to a hex dump
   """
-  if isinstance(data, (str,bytes)):
-    data = [ord(c) for c in data]
+  if isinstance(data, str):
+    data = data.encode("utf8")
   o = ""
   def chunks (data, length):
-    return (data[i:i+length] for i in xrange(0, len(data), length))
+    return (data[i:i+length] for i in range(0, len(data), length))
   def filt (c):
     if c >= 32 and c <= 126: return chr(c)
     return '.'
@@ -506,7 +536,7 @@ def connect_socket_with_backoff (address, port, max_backoff_seconds=32):
   return sock
 
 
-_scalar_types = (int, long, basestring, float, bool)
+_scalar_types = (int, str, float, bool)
 
 def is_scalar (v):
   """
@@ -520,7 +550,7 @@ def is_listlike (o):
   Is this a sequence that isn't like a string or bytes?
   """
   if isinstance(o, (bytes,str,bytearray)): return False
-  return isinstance(o, collections.Iterable)
+  return isinstance(o, collections.abc.Iterable)
 
 
 def fields_of (obj, primitives_only=False,
@@ -543,12 +573,36 @@ def fields_of (obj, primitives_only=False,
       if not isinstance(v, _scalar_types):
         continue
     elif primitives_and_composites_only:
-      if not isinstance(v, (int, long, basestring, float, bool, set,
+      if not isinstance(v, (int, str, bytes, float, bool, set,
                             dict, list)):
         continue
     #r.append((k,v))
     r[k] = v
   return r
+
+
+def del_values_where (d, f):
+  """
+  Deletes items from dict if f(value) is True
+
+  This is optimized for cases with few or no removals.
+  """
+  dead = None
+  for k,v in container.items():
+    if f(v):
+      if not dead: dead = [k]
+      else: dead.append(k)
+  if dead:
+    for k in dead:
+      del d[k]
+
+
+def aslist (l):
+  """
+  Ensures l is a list without copying it
+  """
+  if isinstance(l, list): return l
+  return list(l)
 
 
 def eval_args (f):

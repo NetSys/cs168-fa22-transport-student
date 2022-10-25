@@ -50,13 +50,13 @@ from pox.datapaths import do_launch
 from pox.datapaths.switch import SoftwareSwitchBase, OFConnection
 from pox.datapaths.switch import ExpireMixin
 import pox.lib.pxpcap as pxpcap
-from Queue import Queue
+from queue import Queue
 from threading import Thread
 import pox.openflow.libopenflow_01 as of
 from pox.lib.packet import ethernet
 import pox.lib.packet as pkt
 import logging
-from pox.lib.util import dpid_to_str, str_to_dpid
+from pox.lib.util import dpid_to_str, str_to_dpid, first_of
 
 log = core.getLogger()
 
@@ -98,7 +98,7 @@ def _do_ctl2 (event):
     if event.first == "add-port":
       ra(1,2)
       if len(event.args) == 1 and len(_switches) == 1:
-        sw = _switches[_switches.keys()[0]]
+        sw = _switches[first_of(_switches.keys())]
         p = args[0]
       else:
         ra(2)
@@ -121,7 +121,7 @@ def _do_ctl2 (event):
       s = []
       for sw in _switches.values():
         s.append("Switch %s" % (sw.name,))
-        for no,p in sw.ports.iteritems():
+        for no,p in sw.ports.items():
           stats = sw.port_stats[no]
           s.append(" %3s %-16s rx:%-20s tx:%-20s" % (no, p.name,
                      "%s (%s)" % (stats.rx_packets,stats.rx_bytes),
@@ -145,7 +145,7 @@ def _do_ctl2 (event):
       # Wire a virtual port to a channel: wire-port [sw] port channel
       ra(2,3)
       if len(event.args) == 2 and len(_switches) == 1:
-        sw = _switches[_switches.keys()[0]]
+        sw = _switches[first_of(_switches.keys())]
         p = args[0]
         c = args[1]
       else:
@@ -166,7 +166,7 @@ def _do_ctl2 (event):
       # Unhook the virtual port: unwire-port [sw] port
       ra(1,2)
       if len(event.args) == 1 and len(_switches) == 1:
-        sw = _switches[_switches.keys()[0]]
+        sw = _switches[first_of(_switches.keys())]
         p = args[0]
       else:
         ra(2)
@@ -235,7 +235,7 @@ def _do_ctl2 (event):
       ra(2,3)
       pad = (kvs['p'] * kvs['s'])[:kvs['s']]
       if len(args) == 2 and len(_switches) == 1:
-        sw = _switches[_switches.keys()[0]]
+        sw = _switches[first_of(_switches.keys())]
         mac,ip = args
       else:
         ra(3)
@@ -291,9 +291,6 @@ def launch (address = '127.0.0.1', port = 6633, max_retry_delay = 16,
   Launches a switch
   """
 
-  if not pxpcap.enabled:
-    raise RuntimeError("You need PXPCap to use this component")
-
   if ctl_port:
     if ctl_port is True:
       ctl_port = DEFAULT_CTL_PORT
@@ -304,7 +301,7 @@ def launch (address = '127.0.0.1', port = 6633, max_retry_delay = 16,
       # We can reuse the exiting one
     else:
       # Create one...
-      import ctl
+      from . import ctl
       ctl.server(ctl_port)
       core.ctld.addListenerByName("CommandEvent", _do_ctl)
 
@@ -442,7 +439,7 @@ class PCapSwitch (ExpireMixin, SoftwareSwitchBase):
 
     self.log.setLevel(log_level)
 
-    for px in self.px.itervalues():
+    for px in self.px.values():
       px.start()
 
     self.t.start()
@@ -479,6 +476,9 @@ class PCapSwitch (ExpireMixin, SoftwareSwitchBase):
       if isinstance(virtual, str):
         px.channel = virtual
     else:
+      if not pxpcap.enabled:
+        on_error("Not adding port %s because PXPCap is not available", name)
+        return
       devs = pxpcap.PCap.get_devices()
       if name not in devs:
         on_error("Device %s not available -- ignoring", name)
@@ -490,7 +490,7 @@ class PCapSwitch (ExpireMixin, SoftwareSwitchBase):
       if dev.get('addrs',{}).get('AF_INET') != None:
         on_error("Device %s has an IP address -- ignoring", name)
         return
-      for no,p in self.px.iteritems():
+      for no,p in self.px.items():
         if p.device == name:
           on_error("Device %s already added", name)
 
@@ -524,8 +524,8 @@ class PCapSwitch (ExpireMixin, SoftwareSwitchBase):
     return px
 
   def remove_interface (self, name_or_num):
-    if isinstance(name_or_num, basestring):
-      for no,p in self.px.iteritems():
+    if isinstance(name_or_num, str):
+      for no,p in self.px.items():
         if p.device == name_or_num:
           self.remove_interface(no)
           return

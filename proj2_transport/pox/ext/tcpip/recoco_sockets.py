@@ -22,11 +22,11 @@ To demonstrate, there are a couple simple demonstration applications.
 """
 
 from pox.lib.recoco import task_function, Task
-from time_manager import Blocker, CountDown
+from . time_manager import Blocker, CountDown
 from pox.core import core
 from pox.lib.addresses import IPAddr
-import tcp_sockets
-import units
+from . import tcp_sockets
+from . import units
 import socket
 
 

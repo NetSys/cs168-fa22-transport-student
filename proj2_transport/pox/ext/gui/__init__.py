@@ -22,7 +22,7 @@ from pox.core import core
 from tcpip.modulo_math import *
 from web.websocket import WebsocketHandler
 from collections import deque, defaultdict
-from tcp_analysis import FlowManager
+from . tcp_analysis import FlowManager
 from weakref import WeakSet
 import json
 

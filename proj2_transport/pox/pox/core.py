@@ -1,4 +1,4 @@
-# Copyright 2011-2018 James McCauley
+# Copyright 2011-2022 James McCauley
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@ import inspect
 import time
 import os
 import signal
+import sys
 
 _path = inspect.stack()[0][1]
 _ext_path = _path[0:_path.rindex(os.sep)]
@@ -48,15 +49,37 @@ def getLogger (name=None, moreFrames=0):
   """
   if name is None:
     s = inspect.stack()[1+moreFrames]
+    # Should we always use __name__ instead?
+    fname = s[0].f_globals.get('__file__')
+    matching = False
     name = s[1]
     if name.endswith('.py'):
+      matching = name == fname
       name = name[0:-3]
+    elif name.endswith('.pyo'):
+      matching = name == (fname + "o")
+      name = name[0:-4]
     elif name.endswith('.pyc'):
+      matching = name == (fname + "c")
       name = name[0:-4]
     if name.startswith(_path):
       name = name[len(_path):]
     elif name.startswith(_ext_path):
       name = name[len(_ext_path):]
+    elif not matching:
+      # This may not work right across platforms, so be cautious.
+      n = s[0].f_globals.get('__name__')
+      if n:
+        if n.startswith("pox."): n = n[4:]
+        if n.startswith("ext."): n = n[4:]
+      else:
+        try:
+          n = os.path.basename(name)
+        except Exception:
+          n = ""
+        n = n.replace('\\','/').replace(os.path.sep,'/')
+      if n: name = n
+
     name = name.replace('/', '.').replace('\\', '.') #FIXME: use os.path or whatever
 
     # Remove double names ("topology.topology" -> "topology")
@@ -188,25 +211,31 @@ class POXCore (EventMixin):
     RereadConfiguration,
   ])
 
-  version = (0,6,0)
-  version_name = "fangtooth"
+  version = (0,8,0)
+  version_name = "halosaur"
 
   def __init__ (self, threaded_selecthub=True, epoll_selecthub=False,
                 handle_signals=True):
     self.debug = False
+    self.up = False
     self.running = True
     self.starting_up = True
+    self._exit_code = 0
     self.components = {'core':self}
 
+    import threading
+
+    self._deferral_lock = threading.Lock()
     self._go_up_deferrals = set()
+    self._ready_to_go_up = False
 
     self._openflow_wanted = False
     self._handle_signals = handle_signals
 
-    import threading
     self.quit_condition = threading.Condition()
 
-    print(self.banner)
+    if sys.stdout.isatty():
+      print(self.banner)
 
     self.scheduler = recoco.Scheduler(daemon=True,
                                       threaded_selecthub=threaded_selecthub,
@@ -216,7 +245,7 @@ class POXCore (EventMixin):
 
   @property
   def banner (self):
-    return "{0} / Copyright 2011-2018 James McCauley, et al.".format(
+    return "{0} / Copyright 2011-2022 James McCauley, et al.".format(
      self.version_string)
 
   @property
@@ -278,10 +307,13 @@ class POXCore (EventMixin):
     """
     return getLogger(moreFrames=1,*args, **kw)
 
-  def quit (self):
+  def quit (self, exit_code=None):
     """
     Shut down POX.
     """
+    if exit_code is not None:
+      self._exit_code = exit_code
+
     import threading
     if (self.starting_up or
         threading.current_thread() is self.scheduler._thread):
@@ -349,17 +381,25 @@ class POXCore (EventMixin):
     if not isinstance(threading.current_thread(), threading._MainThread):
       raise RuntimeError("add_signal_handers must be called from MainThread")
 
+    self._install_signal_handler(signal.SIGTERM, self._signal_handler_SIGTERM)
     try:
-      previous = signal.getsignal(signal.SIGHUP)
-      signal.signal(signal.SIGHUP, self._signal_handler_SIGHUP)
-      if previous != signal.SIG_DFL:
-        log.warn('Redefined signal handler for SIGHUP')
+      self._install_signal_handler(signal.SIGHUP, self._signal_handler_SIGHUP)
     except (AttributeError, ValueError):
       # SIGHUP is not supported on some systems (e.g., Windows)
       log.debug("Didn't install handler for SIGHUP")
 
+  def _install_signal_handler (self, signum, handler):
+    signum = signal.Signals(signum)
+    previous = signal.getsignal(signum)
+    signal.signal(signum, handler)
+    if previous != signal.SIG_DFL:
+      log.warn('Redefined signal handler for ' + signum.name)
+
   def _signal_handler_SIGHUP (self, signal, frame):
     self.raiseLater(core, RereadConfiguration)
+
+  def _signal_handler_SIGTERM (self, signal, frame):
+    core.call_later(core.quit)
 
   def goUp (self):
     log.debug(self.version_string + " going up...")
@@ -371,20 +411,24 @@ class POXCore (EventMixin):
       vers = '.'.join(platform.python_version().split(".")[:2])
     except:
       vers = 'an unknown version'
-    if vers != "2.7":
+    def vwarn (*args):
       l = logging.getLogger("version")
       if not l.isEnabledFor(logging.WARNING):
         l.setLevel(logging.WARNING)
-      l.warn("POX requires Python 2.7. You're running %s.", vers)
-      l.warn("If you run into problems, try using Python 2.7 or PyPy.")
+      l.warn(*args)
+    good_versions = ("3.6", "3.7", "3.8", "3.9", "3.10")
+    if vers not in good_versions:
+      vwarn("POX requires one of the following versions of Python: %s",
+             " ".join(good_versions))
+      vwarn("You're running Python %s.", vers)
+      vwarn("If you run into problems, try using a supported version.")
+
+    self._add_signal_handlers()
 
     self.starting_up = False
     self.raiseEvent(GoingUpEvent())
 
-    self._add_signal_handlers()
-
-    if not self._go_up_deferrals:
-      self._goUp_stage2()
+    self.callLater(self._goUp_stage2, main=True)
 
   def _get_go_up_deferral (self):
     """
@@ -393,19 +437,31 @@ class POXCore (EventMixin):
     By doing this, we are deferring progress starting at the GoingUp stage.
     The return value should be called to allow progress again.
     """
-    o = object()
-    self._go_up_deferrals.add(o)
-    def deferral ():
-      if o not in self._go_up_deferrals:
-        raise RuntimeError("This deferral has already been executed")
-      self._go_up_deferrals.remove(o)
-      if not self._go_up_deferrals:
-        log.debug("Continuing to go up")
-        self._goUp_stage2()
+    with self._deferral_lock:
+      o = object()
+      self._go_up_deferrals.add(o)
+      def deferral ():
+        def execute ():
+          if o not in self._go_up_deferrals:
+            raise RuntimeError("This deferral has already been executed")
+          self._go_up_deferrals.remove(o)
+          if not self._go_up_deferrals:
+            log.debug("Continuing to go up")
+            self._goUp_stage2()
+        self.callLater(execute)
 
     return deferral
 
-  def _goUp_stage2 (self):
+  def _goUp_stage2 (self, main=False):
+    with self._deferral_lock:
+      if main: self._ready_to_go_up = True
+      if not self._ready_to_go_up: return
+
+      if self._go_up_deferrals:
+        return
+
+      if self.up: return
+      self.up = True
 
     self.raiseEvent(UpEvent())
 
@@ -483,7 +539,7 @@ class POXCore (EventMixin):
     if callback is None:
       callback = lambda:None
       callback.__name__ = "<None>"
-    if isinstance(components, basestring):
+    if isinstance(components, str):
       components = [components]
     elif isinstance(components, set):
       components = list(components)
@@ -495,12 +551,12 @@ class POXCore (EventMixin):
         components = [components]
     if name is None:
       #TODO: Use inspect here instead
-      name = getattr(callback, 'func_name')
+      name = getattr(callback, '__name__')
       if name is None:
         name = str(callback)
       else:
         name += "()"
-        if hasattr(callback, 'im_class'):
+        if hasattr(callback, '__self__'):
           name = getattr(callback.__self__.__class__,'__name__','')+'.'+name
       if hasattr(callback, '__module__'):
         # Is this a good idea?  If not here, we should do it in the
@@ -577,7 +633,7 @@ class POXCore (EventMixin):
     """
     if components is None:
       components = set()
-    elif isinstance(components, basestring):
+    elif isinstance(components, str):
       components = set([components])
     else:
       components = set(components)
@@ -591,7 +647,7 @@ class POXCore (EventMixin):
     if None in listen_args:
       # This means add it to all...
       args = listen_args.pop(None)
-      for k,v in args.iteritems():
+      for k,v in args.items():
         for c in components:
           if c not in listen_args:
             listen_args[c] = {}

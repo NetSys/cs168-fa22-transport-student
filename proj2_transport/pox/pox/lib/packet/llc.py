@@ -14,10 +14,10 @@
 
 import struct
 
-from packet_base import packet_base
-from ethernet import ethernet
+from .packet_base import packet_base
+from .ethernet import ethernet
 
-from packet_utils import *
+from .packet_utils import *
 
 
 class llc (packet_base):
@@ -118,8 +118,8 @@ class llc (packet_base):
       r += struct.pack("!B", self.control)
     else:
       #FIXME: this is sloppy
-      r += chr(self.control & 0xff)
-      r += chr((self.control>>8) & 0xff)
+      r += struct.pack("BB", self.control & 0xff,
+                             (self.control>>8) & 0xff )
     if self.has_snap:
       # SNAP
       r += self.oui

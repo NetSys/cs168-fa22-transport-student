@@ -53,10 +53,6 @@ class BasicAuthMixin (object):
   and password) and again returns True for acceptable users.  If it is
   None, authentication is disabled (everyone can access the handler).
 
-  basic_auth_function should be a function which takes a username and password
-  and returns True if it's a valid user.  If it's None, authentication is
-  turned off.  You may want to set this up in _init().
-
   In your handlers (e.g., do_GET()), the first line should be something like:
     if not self._do_auth(): return
 
@@ -64,7 +60,7 @@ class BasicAuthMixin (object):
   is by overriding the _get_auth_realm() method, which lets you do whatever
   you want.  Alternatively, you can change the auth_realm attribute to
   whatever you like.  There are two magic values.  If it's None (the
-  default), the realm will be the path the split, so that each prefix split
+  default), the realm will be the path split, so that each prefix split
   gets its own realm.  If it's True, the realm will be the name of the
   handler class (with a trailing "Handler" removed, if any).
   """
@@ -81,9 +77,9 @@ class BasicAuthMixin (object):
     if self._is_basic_auth_enabled is False: return True
 
     try:
-      return self.auth_function(self, user, password)
+      return self.basic_auth_function(self, user, password)
     except TypeError:
-      return self.auth_function(user, password)
+      return self.basic_auth_function(user, password)
 
   @property
   def _is_basic_auth_enabled (self):
@@ -91,8 +87,8 @@ class BasicAuthMixin (object):
     if bae is True: return True
     if bae is False: return False
     try:
-      if (self._check_basic_auth.im_func.func_code is
-          BasicAuthMixin._check_basic_auth.im_func.func_code):
+      if (self._check_basic_auth.__func__.__code__ is
+          BasicAuthMixin._check_basic_auth.__func__.__code__):
         authf = getattr(self, 'basic_auth_function', None)
         if authf is None:
           self.basic_auth_enabled = False
@@ -127,7 +123,8 @@ class BasicAuthMixin (object):
     success = False
     if auth.lower().startswith("basic "):
       try:
-        auth = base64.decodestring(auth[6:].strip()).split(':', 1)
+        auth = base64.decodestring(auth[6:].strip().encode("utf8"))
+        auth = auth.decode("utf8").split(':', 1)
         success = self._check_basic_auth(auth[0], auth[1])
       except Exception:
         log.exception("While attempting HTTP basic authentication")

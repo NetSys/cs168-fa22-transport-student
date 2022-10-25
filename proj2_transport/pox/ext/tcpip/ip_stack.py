@@ -43,8 +43,8 @@ import pox.lib.packet as pkt
 
 from pox.proto.arp_table import ARPTable
 
-from netdev import *
-from time_manager import RealTimeManager
+from . netdev import *
+from . time_manager import RealTimeManager
 
 from pox.core import core
 log = core.getLogger()
@@ -161,7 +161,7 @@ class MasqTable (object):
   def _do_expirations (self):
     dead = []
     ts = self.stack.now
-    for t,me in self._out_table.iteritems():
+    for t,me in self._out_table.items():
       if ts - me.ts > me.expire_time:
         dead.append((t,me))
     if dead:
@@ -231,7 +231,7 @@ class Routing (object):
     """
     Returns matching Routes
     """
-    for l in xrange(32,-1,-1):
+    for l in range(32,-1,-1):
       table = self.tables[l]
       if not table: continue
       e = table.get(addr.get_network(l)[0])
@@ -259,7 +259,7 @@ class Routing (object):
   def get_all_routes (self):
     r = []
     for t in self.tables:
-      for e in t.itervalues():
+      for e in t.values():
         if e:
           r.append(e[0])
     return r
@@ -286,7 +286,7 @@ class Packet (object):
 
   def clone (self):
     p = type(self)(ts=False)
-    for k,v in vars(self).iteritems():
+    for k,v in vars(self).items():
       setattr(p, k, v)
     return p
 
@@ -519,7 +519,7 @@ class IPStack (object):
     """
     # Possibly more efficient to use fnmatch.filter(self.netdevs.keys())...
     r = None
-    for k,v in self.netdevs.iteritems():
+    for k,v in self.netdevs.items():
       if fnmatch.fnmatchcase(k, name):
         if r is not None: raise RuntimeError("More than one match")
         r = v
@@ -531,7 +531,7 @@ class IPStack (object):
     """
     # Possibly more efficient to use fnmatch.filter(self.netdevs.keys())...
     r = []
-    for k,v in self.netdevs.iteritems():
+    for k,v in self.netdevs.items():
       if fnmatch.fnmatchcase(k, name):
         r.append(v)
     return r
@@ -542,7 +542,7 @@ class IPStack (object):
 
   def has_ip (self, ip):
     ip = IPAddr(ip)
-    for d in self.netdevs.itervalues():
+    for d in self.netdevs.values():
       if d.has_ip(ip): return True
     return False
 
@@ -648,7 +648,7 @@ class IPStack (object):
     if isinstance(sniffer, int):
       del self._sniffers[sniffer]
     else:
-      for k,s in self._sniffers.iteritems():
+      for k,s in self._sniffers.items():
         if s is sniffer:
           del self._sniffers[k]
           break
@@ -710,7 +710,7 @@ class IPStack (object):
 
     dead_snoop = None
     sniff_eat = False
-    for k,v in self._sniffers.iteritems():
+    for k,v in self._sniffers.items():
       r = v(p)
       if r and self.SNIFF_REMOVE:
         if dead_snoop is None: dead_snoop = []

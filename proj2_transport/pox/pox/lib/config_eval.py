@@ -380,7 +380,7 @@ def _eval_text (text, result_type=dict, dict_type=dict,
             continue
           elif ignore_commas and maybe(","):
             continue
-          elif len(result) and isinstance(result[-1], (str,unicode)):
+          elif len(result) and isinstance(result[-1], str):
             # This string extension might end with whitespace or the end of
             # the string.  We try one way and if it fails, try again the
             # other way.
@@ -427,16 +427,16 @@ if __name__ == "__main__":
   functions = dict(add=lambda a,b: a+b, num=lambda:42)
   import sys
   for arg in sys.argv[1:]:
-    print arg
+    print(arg)
     try:
       r = eval_dict(arg, functions=functions)
-      print "DICT:", r
+      print("DICT:", r)
     except:
       pass
     try:
       r = eval_list(arg, functions=functions)
-      print "LIST:", r
+      print("LIST:", r)
     except:
       raise
       pass
-    print
+    print()

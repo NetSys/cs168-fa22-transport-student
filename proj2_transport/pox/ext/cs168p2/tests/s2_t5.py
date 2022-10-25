@@ -38,7 +38,7 @@ def launch (log_name="s2_t4", data="", drop_count=0,
 
     def get_client_socket ():
       try:
-        return next(iter(c1.stack.socket_manager.peered.itervalues()))
+        return next(iter(c1.stack.socket_manager.peered.values()))
       except Exception:
         return None
 
@@ -75,7 +75,7 @@ def launch (log_name="s2_t4", data="", drop_count=0,
     r1.stack.add_packet_capture("*", on_cap, ip_only=True)
 
     def do_score ():
-      tester.expect_eq(data, capp.rx_buffer, "payload correctly assembled")
+      tester.expect_eq(data.encode('ascii'), capp.rx_buffer, "payload correctly assembled")
       num_pkts_payload = sum(1 for p in pkts if p.payload)
       tester.expect_true(6 <= num_pkts_payload <= 10, "[6,10] packets with payload")
 

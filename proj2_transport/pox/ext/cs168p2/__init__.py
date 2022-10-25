@@ -1,5 +1,5 @@
 from pox.core import core
-from student_socket import StudentUSocket
+from . student_socket import StudentUSocket
 
 log = core.getLogger()
 

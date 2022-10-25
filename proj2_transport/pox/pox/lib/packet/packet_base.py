@@ -88,7 +88,7 @@ class packet_base (object):
         #TODO: Remove?
         lg.warning(*args)
 
-    def __nonzero__(self):
+    def __bool__(self):
         return self.parsed is True
 
     def __len__(self):
@@ -117,7 +117,7 @@ class packet_base (object):
                 break
               s = ''
               for t in range(min(len(p), 5)):
-                s += "%02x " % (ord(p[t]),)
+                s += "%02x " % (p[t],)
               if len(p) > 5: s += "..."
               s = s.rstrip()
               m.append("[%s bytes: " % (len(p),) + s + "]")
@@ -136,7 +136,7 @@ class packet_base (object):
         """
         Find the specified protocol layer based on its class type or name.
         """
-        if not isinstance(proto, basestring):
+        if not isinstance(proto, str):
             proto = proto.__name__
         if self.__class__.__name__ == proto and self.parsed:
             return self
@@ -171,7 +171,7 @@ class packet_base (object):
         elif type(payload) == bytes:
             self.next = payload
         else:
-            raise TypeError("payload must be string or packet subclass")
+            raise TypeError("payload must be bytes or packet subclass")
 
     def parse(self, raw):
         '''Override me with packet parsing code'''
@@ -201,6 +201,8 @@ class packet_base (object):
             return self.hdr(b'')
         elif isinstance(self.next, packet_base):
             rest = self.next.pack()
+        elif isinstance(self.next, str):
+            rest = self.next.encode()
         else:
             rest = self.next
 

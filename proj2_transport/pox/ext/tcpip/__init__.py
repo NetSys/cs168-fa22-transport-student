@@ -16,13 +16,13 @@
 Network stack and simulator
 """
 
-import sim_core
+from . sim_core import Topology,RealtimeTopology  
 from pox.core import core
 from pox.lib.addresses import IPAddr, EthAddr
-import sim_nodes
-from droppers import RandomDropper, RegularDropper
-from wires import InfinityWire
-from queues import InfinityQueue
+from . import sim_nodes
+from . droppers import RandomDropper, RegularDropper
+from . wires import InfinityWire
+from . queues import InfinityQueue
 
 
 def init_standard_topo (topo, num_clients=1, num_servers=1):
@@ -77,7 +77,7 @@ def simple_test (virtual_time=False, clients=1, servers=1):
   """
   A launcher for a basic test.
   """
-  t = sim_core.Topology(virtual_time=virtual_time)
+  t = Topology(virtual_time=virtual_time)
   if _default_queue_type:
     t.default_queue_factory = t.make_factory(_default_queue_type)
   core.register("sim_topo", t)
@@ -142,7 +142,7 @@ def fast_sender (node, bytes, delay=0, port=0, ip=None, listen=False,
 
 def realworld_test (tap=None, tun=None, pcap=None, ip_addr=None, dhcp=False,
                     masq=False, local_eth=None):
-  t = sim_core.RealtimeTopology()
+  t = RealtimeTopology()
   if _default_queue_type:
     t.default_queue_factory = t.make_factory(_default_queue_type)
   core.register("sim_topo", t)

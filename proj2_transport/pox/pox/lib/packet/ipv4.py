@@ -40,14 +40,14 @@
 
 import struct
 import time
-from packet_utils       import *
-from tcp import *
-from udp import *
-from icmp import *
-from igmp import *
-from gre import *
+from .packet_utils       import *
+from .tcp import *
+from .udp import *
+from .icmp import *
+from .igmp import *
+from .gre import *
 
-from packet_base import packet_base
+from .packet_base import packet_base
 
 from pox.lib.addresses import IPAddr, IP_ANY, IP_BROADCAST
 
@@ -74,7 +74,7 @@ class ipv4(packet_base):
         self.prev = prev
 
         self.v     = 4
-        self.hl    = ipv4.MIN_LEN / 4
+        self.hl    = ipv4.MIN_LEN // 4
         self.tos   = 0
         self.iplen = ipv4.MIN_LEN
         ipv4.ip_id = (ipv4.ip_id + 1) & 0xffff

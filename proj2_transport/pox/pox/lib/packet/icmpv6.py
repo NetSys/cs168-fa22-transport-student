@@ -39,9 +39,8 @@ See RFCs 4443 and 4861 in particular.
 
 import struct
 import random
-import new
-from packet_utils import *
-from packet_base import packet_base
+from .packet_utils import *
+from .packet_base import packet_base
 
 from pox.lib.addresses import IPAddr6,EthAddr
 from pox.lib.util import hexdump, init_helper
@@ -159,7 +158,7 @@ class NDOptionBase (packet_base):
     ss = self._fields()
     if ss:
       s += ' '
-      s += " ".join(["%s:%s" % (k,v) for k,v in ss.iteritems()])
+      s += " ".join(["%s:%s" % (k,v) for k,v in ss.items()])
     return "[" + s + "]"
 
   @property
@@ -225,8 +224,8 @@ class NDOptionBase (packet_base):
 
   def pack (self):
     d = self._pack_body()
-    while (len(d)+2) % 8: d += "\x00" # sloppy
-    return struct.pack("BB", self.TYPE, (len(d)+2)/8) + d
+    while (len(d)+2) % 8: d += b"\x00" # sloppy
+    return struct.pack("BB", self.TYPE, (len(d)+2)//8) + d
 
   @classmethod
   def _unpack_new (cls, raw, offset, t, length, prev):
@@ -256,7 +255,7 @@ class NDOptionGeneric (NDOptionBase):
 
   def __repr__ (self):
     return "<NDP Option Type %s>" % (self.TYPE,)
- 
+
   def _init (self, *args, **kw):
     self.raw = b''
 
@@ -298,7 +297,7 @@ class NDOptLinkLayerAddress (NDOptionBase):
       self.address = None
     else:
       self.address = EthAddr(a)
-  
+
   def _fields (self):
     return {'addr':self.address}
 
@@ -309,7 +308,7 @@ class NDOptLinkLayerAddress (NDOptionBase):
 
   def _pack_body (self):
     return self.address.raw
-    
+
 
 @nd_option_def
 class NDOptSourceLinkLayerAddress (NDOptLinkLayerAddress):
@@ -369,7 +368,7 @@ class NDOptPrefixInformation (NDOptionBase):
   def pack (self):
     s = struct.pack("!BBII", self.prefix_length, self.flags,
         self.valid_lifetime,self.preferred_lifetime)
-    s += '\x00' * 4
+    s += b'\x00' * 4
     s += self.prefix.raw
     return s
 
@@ -410,7 +409,7 @@ class icmp_base (packet_base):
     ss = self._fields()
     if ss:
       s += ' '
-      s += " ".join(["%s:%s" % (k,v) for k,v in ss.iteritems()])
+      s += " ".join(["%s:%s" % (k,v) for k,v in ss.items()])
     return s + "]"
 
   def _fields (self):
@@ -510,7 +509,7 @@ class NDRouterSolicitation (icmp_base):
     return offset,o
 
   def pack (self):
-    o = '\x00' * 4 # _PAD4
+    o = b'\x00' * 4 # _PAD4
     for opt in self.options:
       o += opt.pack()
     return o
@@ -579,7 +578,7 @@ class NDRouterAdvertisement (icmp_base):
     return f
 
   def pack (self):
-    o = '\x00' * 4 # _PAD4
+    o = b'\x00' * 4 # _PAD4
 
     o += struct.pack("!BBHII", self.hop_limit, self.flags, self.lifetime,
         self.reachable, self.retrans_time)
@@ -631,7 +630,7 @@ class NDNeighborSolicitation (icmp_base):
     return offset,o
 
   def pack (self):
-    o = '\x00' * 4 # _PAD4
+    o = b'\x00' * 4 # _PAD4
     o += self.target.raw
     for opt in self.options:
       o += opt.pack()
@@ -678,7 +677,7 @@ class NDNeighborAdvertisement (icmp_base):
     if buf_len is None: buf_len = len(raw)
 
     try:
-      flags = ord(raw[offset])
+      flags = raw[offset]
       o.is_router = (flags & cls.ROUTER_FLAG) != 0
       o.is_solicited = (flags & cls.SOLICITED_FLAG) != 0
       o.is_override = (flags & cls.OVERRIDE_FLAG) != 0
@@ -701,8 +700,8 @@ class NDNeighborAdvertisement (icmp_base):
     if self.is_router: o |= self.ROUTER_FLAG
     if self.is_solicited: o |= self.SOLICITED_FLAG
     if self.is_override : o |= self.OVERRIDE_FLAG
-    o = chr(o)
-    o += '\x00' * 3 # _PAD3
+    o = bytes([o])
+    o += b'\x00' * 3 # _PAD3
     o += self.target.raw
     for opt in self.options:
       o += opt.pack()
@@ -721,7 +720,7 @@ class TimeExceeded (icmp_base):
     self._init(kw)
 
   def _fields (self):
-    f = ['mtu']
+    f = []#'mtu']
     r = {}
     for ff in f:
       r[ff] = getattr(self, ff)
@@ -748,7 +747,7 @@ class TimeExceeded (icmp_base):
     o.prev = prev
     return offset,o
 
-  def hdr (self, payload):
+  def pack (self):
     return struct.pack('!I', 0) # Unused
 
 
@@ -794,7 +793,7 @@ class PacketTooBig (icmp_base):
     o.prev = prev
     return offset,o
 
-  def hdr (self, payload):
+  def pack (self):
     return struct.pack('!I', self.mtu)
 
 
@@ -910,10 +909,10 @@ class unreach (packet_base, unpack_new_adapter):
 
     self.parsed = True
 
-    import ipv6
+    from . import ipv6
     # xxx We're assuming this is IPv6!
     if dlen >= 8 + ipv6.MIN_LEN:
-      self.next = ipv6.ipv6(raw=raw[unreach.MIN_LEN:],prev=self)
+      self.next = ipv6(raw=raw[unreach.MIN_LEN:],prev=self)
     else:
       self.next = raw[unreach.MIN_LEN:]
 

@@ -22,7 +22,7 @@ Currently limited to Linux.
 """
 
 from pox.lib.pxpcap import PCap
-from Queue import Queue
+from queue import Queue
 from pox.lib.revent import Event, EventMixin
 from pox.lib.ioworker.io_loop import ReadLoop
 from pox.core import core
@@ -30,7 +30,7 @@ import struct
 
 from fcntl import ioctl
 import socket
-from pox.lib.addresses import EthAddr, IPAddr
+from pox.lib.addresses import EthAddr, IPAddr, IPAddr6
 from pox.lib.addresses import parse_cidr, cidr_to_netmask
 import os
 import ctypes
@@ -149,7 +149,7 @@ class rtentry (object):
 
   def pack (self):
     if self.rt_dev:
-      s = ctypes.c_char_p(self.rt_dev + "\0") # Null terminator necessary?
+      s = ctypes.c_char_p(self.rt_dev + b"\0") # Null terminator necessary?
       dev = ctypes.cast(s, ctypes.c_void_p).value
       self._buf = s # You must use the resulting packed string before changing
                     # rt_dev!
@@ -188,8 +188,17 @@ class sockaddr_in (object):
   def pack (self):
     r = struct.pack("hH", self.sin_family, self.sin_port)
     r += self.sin_addr.raw
-    r += ("\0" * 8)
+    r += (b"\0" * 8)
     return r
+
+
+def _to_bytes (s):
+  if isinstance(s, bytes): return s
+  return s.encode("ASCII")
+
+def _to_str (b):
+  if isinstance(b, str): return b
+  return b.decode("ASCII")
 
 
 class Interface (object):
@@ -202,77 +211,78 @@ class Interface (object):
   #TODO: Setters
 
   def __init__ (self, name):
-    self._name = name
+    self._name = _to_bytes(name)
 
   def __str__ (self):
     return "%s('%s')" % (type(self).__name__, self.name)
 
   @property
   def name (self):
-    return self._name.rstrip("\0")
+    return _to_str(self._name)
 
   @name.setter
   def name (self, value):
+    value = _to_bytes(value).rstrip(b"\0")
     if len(value) > IFNAMESIZ: raise RuntimeError("Name too long")
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    ifr = struct.pack(str(IFNAMESIZ) + "s", self.name)
+    ifr = struct.pack(str(IFNAMESIZ) + "s", self._name)
     ifr += value
-    ifr += "\0" * (IFREQ_SIZE - len(ifr))
+    ifr += b"\0" * (IFREQ_SIZE - len(ifr))
     ret = ioctl(sock, SIOCSIFNAME, ifr)
     self._name = value
 
   @property
   def ipv6_enabled (self):
-    f = file("/proc/sys/net/ipv6/conf/%s/disable_ipv6" % (self.name,), "r")
+    f = open("/proc/sys/net/ipv6/conf/%s/disable_ipv6" % (self.name,), "r")
     with f:
       return f.read()[0] == "0" # Note inversion!
 
   @ipv6_enabled.setter
   def ipv6_enabled (self, value):
-    f = file("/proc/sys/net/ipv6/conf/%s/disable_ipv6" % (self.name,), "w")
+    f = open("/proc/sys/net/ipv6/conf/%s/disable_ipv6" % (self.name,), "w")
     with f:
       f.write("0" if value else "1") # Note inversion!
 
   @property
   def ip_forwarding (self):
-    f = file("/proc/sys/net/ipv4/conf/%s/forwarding" % (self.name,), "r")
+    f = open("/proc/sys/net/ipv4/conf/%s/forwarding" % (self.name,), "r")
     with f:
       return f.read()[0] == "1"
 
   @ip_forwarding.setter
   def ip_forwarding (self, value):
-    f = file("/proc/sys/net/ipv4/conf/%s/forwarding" % (self.name,), "w")
+    f = open("/proc/sys/net/ipv4/conf/%s/forwarding" % (self.name,), "w")
     with f:
       f.write("1" if value else "0")
 
   @property
   def mtu (self):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    ifr = struct.pack(str(IFNAMESIZ) + "s", self.name)
-    ifr += "\0" * (IFREQ_SIZE - len(ifr))
+    ifr = struct.pack(str(IFNAMESIZ) + "s", self._name)
+    ifr += b"\0" * (IFREQ_SIZE - len(ifr))
     ret = ioctl(sock, SIOCGIFMTU, ifr)
     return struct.unpack("I", ret[IFNAMESIZ:][:4])[0]
 
   @mtu.setter
   def mtu (self, value):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    ifr = struct.pack(str(IFNAMESIZ) + "sI", self.name, value)
-    ifr += "\0" * (IFREQ_SIZE - len(ifr))
+    ifr = struct.pack(str(IFNAMESIZ) + "sI", self._name, value)
+    ifr += b"\0" * (IFREQ_SIZE - len(ifr))
     ret = ioctl(sock, SIOCSIFMTU, ifr)
 
   @property
   def flags (self):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    ifr = struct.pack(str(IFNAMESIZ) + "s", self.name)
-    ifr += "\0" * (IFREQ_SIZE - len(ifr))
+    ifr = struct.pack(str(IFNAMESIZ) + "s", self._name)
+    ifr += b"\0" * (IFREQ_SIZE - len(ifr))
     ret = ioctl(sock, SIOCGIFFLAGS, ifr)
     return struct.unpack("H", ret[IFNAMESIZ:IFNAMESIZ+2])[0]
 
   @flags.setter
   def flags (self, value):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    ifr = struct.pack(str(IFNAMESIZ) + "sH", self.name, value)
-    ifr += "\0" * (IFREQ_SIZE - len(ifr))
+    ifr = struct.pack(str(IFNAMESIZ) + "sH", self._name, value)
+    ifr += b"\0" * (IFREQ_SIZE - len(ifr))
     ret = ioctl(sock, SIOCSIFFLAGS, ifr)
 
   def set_flags (self, flags, on=True):
@@ -349,10 +359,21 @@ class Interface (object):
     return self._ioctl_set_ipv4(SIOCSIFBRDADDR, value)
 
   @property
+  def ip_addr6 (self):
+    # Currently readonly because we don't support netlink (yet?)
+    with open("/proc/net/if_inet6", "r") as f:
+      for l in f:
+        l = l.split()
+        if len(l) != 6: continue
+        if l[-1] == self.name:
+          return IPAddr6(l[0])
+    return None
+
+  @property
   def eth_addr (self):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    ifr = struct.pack(str(IFNAMESIZ) + "s", self.name)
-    ifr += "\0" * (IFREQ_SIZE - len(ifr))
+    ifr = struct.pack(str(IFNAMESIZ) + "s", self._name)
+    ifr += b"\0" * (IFREQ_SIZE - len(ifr))
     ret = ioctl(sock, SIOCGIFHWADDR, ifr)
     sa = ret[IFNAMESIZ:] # sockaddr
     return self._get_eth(sa)
@@ -361,24 +382,24 @@ class Interface (object):
   def eth_addr (self, value):
     value = EthAddr(value).raw
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    ifr = struct.pack(str(IFNAMESIZ) + "sH", self.name, ARPHRD_ETHER)
+    ifr = struct.pack(str(IFNAMESIZ) + "sH", self._name, ARPHRD_ETHER)
     ifr += value # Append to sockaddr
-    ifr += "\0" * (IFREQ_SIZE - len(ifr))
+    ifr += b"\0" * (IFREQ_SIZE - len(ifr))
     ret = ioctl(sock, SIOCSIFHWADDR, ifr)
 
   def _ioctl_get_ipv4 (self, which):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    ifr = struct.pack(str(IFNAMESIZ) + "s", self.name)
-    ifr += "\0" * (IFREQ_SIZE - len(ifr))
+    ifr = struct.pack(str(IFNAMESIZ) + "s", self._name)
+    ifr += b"\0" * (IFREQ_SIZE - len(ifr))
     ret = ioctl(sock, which, ifr)
     return self._get_ipv4(ret[IFNAMESIZ:])
 
   def _ioctl_set_ipv4 (self, which, value):
     value = IPAddr(value)
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    ifr = struct.pack(str(IFNAMESIZ) + "sHHI", self.name, socket.AF_INET, 0,
+    ifr = struct.pack(str(IFNAMESIZ) + "sHHI", self._name, socket.AF_INET, 0,
                       value.toUnsigned(networkOrder=True))
-    ifr += "\0" * (IFREQ_SIZE - len(ifr))
+    ifr += b"\0" * (IFREQ_SIZE - len(ifr))
     ret = ioctl(sock, which, ifr)
 
   @staticmethod
@@ -429,7 +450,7 @@ class Interface (object):
     if isinstance(network, tuple):
       addr,mask = network
       addr = str(addr)
-      if isinstance(mask, (int,long)):
+      if isinstance(mask, int):
         mask = cidr_to_netmask(mask)
       mask = str(mask)
       network = "%s/%s" % (addr,mask)
@@ -444,7 +465,7 @@ class Interface (object):
       r.rt_gateway = IPAddr(gateway)
       r.rt_flags |= r.RTF_GATEWAY
     r.rt_metric = metric
-    if dev is (): dev = self
+    if dev == (): dev = self
     if isinstance(dev, Interface): dev = dev.name
     if dev: r.rt_dev = dev
     if host: r.rt_flags |= r.RTF_HOST
@@ -493,14 +514,14 @@ class TunTap (object):
 
     if raw: flags |= IFF_NO_PI
 
-    ifr = struct.pack(str(IFNAMESIZ) + "sH", name, flags)
-    ifr += "\0" * (IFREQ_SIZE - len(ifr))
+    ifr = struct.pack(str(IFNAMESIZ) + "sH", name.encode("utf8"), flags)
+    ifr += b"\0" * (IFREQ_SIZE - len(ifr))
 
     ret = ioctl(self.fileno(), TUNSETIFF, ifr)
-    self.name = ret[:IFNAMESIZ]
+    self.name = ret[:IFNAMESIZ].split(b"\0",1)[0].decode()
     iflags = flags
-    ifr = struct.pack(str(IFNAMESIZ) + "sH", name, 0)
-    ifr += "\0" * (IFREQ_SIZE - len(ifr))
+    ifr = struct.pack(str(IFNAMESIZ) + "sH", name.encode("utf8"), 0)
+    ifr += b"\0" * (IFREQ_SIZE - len(ifr))
     ret = ioctl(self.fileno(), TUNGETIFF, ifr)
     flags = struct.unpack("H", ret[IFNAMESIZ:IFNAMESIZ+2])[0]
     self.is_tun = (flags & IFF_TUN) == IFF_TUN
@@ -568,7 +589,7 @@ class PCapInterface (Interface, EventMixin):
 
   def _queue_read (self):
     anything = False
-    for _ in xrange(10): # as most X at once
+    for _ in range(10): # as most X at once
       try:
         data = self._q.get(False)
         self._q.task_done()
@@ -629,7 +650,7 @@ class TapInterface (Interface, EventMixin):
       if flags or protocol:
         flags = struct.pack("!HH", flags, protocol) # Flags reversed?
       else:
-        flags = "\0\0\0\0"
+        flags = b"\0\0\0\0"
       data = flags + data
     self.tap.write(data)
 

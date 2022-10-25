@@ -326,7 +326,7 @@ class EventMixin (object):
     """
     Returns the number of listeners.
     """
-    return sum((len(x) for x in self._eventMixin_handlers.itervalues()))
+    return sum((len(x) for x in self._eventMixin_handlers.values()))
 
   def removeListener (self, handlerOrEID, eventType=None):
     """
@@ -400,10 +400,9 @@ class EventMixin (object):
     """
     assert not (event_type and event_name)
     if (not event_type) and not (event_name):
-      if not handler.func_name.startswith("_handle_"):
+      if not handler.__name__.startswith("_handle_"):
         raise RuntimeError("Could not infer event type")
-      #event_name = handler.func_name[8:]
-      event_name = handler.func_name.rsplit('_', 1)[-1]
+      event_name = handler.__name__.rsplit('_', 1)[-1]
     by_name = True if event_name else False
     t = event_name if by_name else event_type
 
@@ -544,11 +543,14 @@ def autoBindEvents (sink, source, prefix='', weak=False,
       events[e.__name__] = e
 
   listeners = []
+  sinktype = type(sink)
   # for each method in sink
-  for m in dir(sink):
+  for m in dir(sinktype):
     # get the method object
-    a = getattr(sink, m)
-    if callable(a):
+    if callable(getattr(sinktype, m)):
+      a = getattr(sink, m, None)
+      if not callable(a): continue
+
       # if it has the revent prefix signature,
       if m.startswith("_handle" + prefix + "_"):
         event = m[8+len(prefix):]
@@ -581,8 +583,8 @@ class CallProxy (object):
     removeData :  The identifier used for removal of the handler
     """
     self.source = weakref.ref(source, self._forgetMe)
-    self.obj = weakref.ref(handler.im_self, self._forgetMe) # methods only!
-    self.method = handler.im_func
+    self.obj = weakref.ref(handler.__self__, self._forgetMe) # methods only!
+    self.method = handler.__func__
     self.removeData = removeData
     self.name = str(handler)
 

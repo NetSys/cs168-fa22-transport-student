@@ -18,6 +18,7 @@ class Application(object):
 
   # execute in self.thread
   def __exec(self):
+    print(self.cmdline)
     self.popen = subprocess.Popen(self.cmdline, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
     self.stdout, self.stderr = self.popen.communicate()
 

@@ -63,7 +63,7 @@ except:
     pass
 
 from pox.lib.addresses import IPAddr, EthAddr, IPAddr6
-import parser
+from . import parser
 from threading import Thread, Lock, RLock, Semaphore
 import pox.lib.packet as pkt
 import pox.lib.util
@@ -159,7 +159,7 @@ class PCapSelectLoop (object):
             for pcap in must_remove:
               if pcap not in backwards: continue
               del _filenos[backwards[pcap]]
-        fds = _filenos.keys()
+        fds = list(_filenos.keys())
         fds.append(self._pinger)
 
       if len(fds) <= 1:
@@ -190,7 +190,7 @@ class PCapSelectLoop (object):
       elif not xx:
         # Nothing!
         quit = []
-        for pcap in _filenos.itervalues():
+        for pcap in _filenos.values():
           if pcap._quitting: quit.append(pcap)
         if quit:
           reread = True
@@ -488,7 +488,7 @@ class Filter (object):
 
 try:
   _link_type_names = {}
-  for k,v in copy.copy(pcapc.__dict__).iteritems():
+  for k,v in copy.copy(pcapc.__dict__).items():
     if k.startswith("DLT_"):
       _link_type_names[v] = k
 except:
@@ -515,25 +515,25 @@ def test (interface = "en1"):
     nbd = bytes_real - bytes_got
     if nbd != bytes_diff:
       bytes_diff = nbd
-      print "lost bytes:",nbd
+      print("lost bytes:",nbd)
     if t > total:
       total = t + 500
-      print t,"total"
+      print(t,"total")
     if d > drop:
       drop = d
-      print d, "dropped"
+      print(d, "dropped")
     p = pkt.ethernet(data)
     ip = p.find('ipv4')
     if ip:
-      print ip.srcip,"\t",ip.dstip, p
+      print(ip.srcip,"\t",ip.dstip, p)
 
-  print "\n".join(["%i. %s" % x for x in
-                  enumerate(PCap.get_device_names())])
+  print("\n".join(["%i. %s" % x for x in
+                  enumerate(PCap.get_device_names())]))
 
   if interface.startswith("#"):
     interface = int(interface[1:])
     interface = PCap.get_device_names()[interface]
-  print "Interface:",interface
+  print("Interface:",interface)
 
   p = PCap(interface, callback = cb,
            filter = "icmp")
@@ -585,11 +585,11 @@ def interfaces (verbose = False):
   Show interfaces
   """
   if not verbose:
-    print "\n".join(["%i. %s" % x for x in
-                    enumerate(PCap.get_device_names())])
+    print("\n".join(["%i. %s" % x for x in
+                    enumerate(PCap.get_device_names())]))
   else:
     import pprint
-    print pprint.pprint(PCap.get_devices())
+    print(pprint.pprint(PCap.get_devices()))
 
   from pox.core import core
   core.quit()
@@ -601,7 +601,7 @@ def launch (interface, no_incoming=False, no_outgoing=False):
   """
   def cb (obj, data, sec, usec, length):
     p = pkt.ethernet(data)
-    print p.dump()
+    print(p.dump())
 
   if interface.startswith("#"):
     interface = int(interface[1:])

@@ -20,14 +20,14 @@ See host_tracker.host_tracker for more info.
 """
 
 from pox.core import core
-import host_tracker
+from . import host_tracker
 log = core.getLogger()
 import logging
 log.setLevel(logging.INFO)
 from pox.lib.addresses import EthAddr
 
 def launch (src_mac = None, no_flow = False, **kw):
-  for k, v in kw.iteritems():
+  for k, v in kw.items():
     if k in host_tracker.timeoutSec:
       host_tracker.timeoutSec[k] = int(v)
       log.debug("Changing timer parameter: %s = %s",k,v)

@@ -19,12 +19,12 @@ Nodes used by the simulator (or at least their base types)
 from pox.core import core
 import pox.lib.packet as pkt
 from pox.lib.addresses import IPAddr
-from ip_stack import IPStack
+from . ip_stack import IPStack
 import struct
-from recoco_sockets import RecocoSocketManager, DataLogger, FastSender, BasicStateTransServer
-from small_services import *
+from . recoco_sockets import RecocoSocketManager, DataLogger, FastSender, BasicStateTransServer
+from . small_services import *
 from weakref import WeakSet
-import tcp_sockets
+from . import tcp_sockets
 import socket
 
 
@@ -75,7 +75,7 @@ class Node (object):
     Returns a netdev (one with an IP if possible)
     """
     r = None
-    for d in self.stack.netdevs.itervalues():
+    for d in self.stack.netdevs.values():
       if d.ip_addr: return d
       r = d
     return r
@@ -195,7 +195,7 @@ class Node (object):
 
 import sys
 import pox.lib.revent as revent
-import recoco_sockets
+from . import recoco_sockets
 from pox.lib.recoco import task_function
 
 class NetCat (recoco_sockets.SimpleReSocketApp):

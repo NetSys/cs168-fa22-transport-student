@@ -22,8 +22,8 @@ NOTE: The web_transport keeps its own session IDs.  Since it was first
       Connection, and we could (but are not) reuse those.
 """
 
-from SocketServer import ThreadingMixIn
-from BaseHTTPServer import *
+from socketserver import ThreadingMixIn
+from http.server import *
 import time
 import select
 
@@ -102,7 +102,7 @@ class HTTPTransport (Transport):
     self._t = Timer(60*2, self._check_timeouts, recurring=True)
 
   def _check_timeouts (self):
-    for c in self._connections.values():
+    for c in list(self._connections.values()):
       c._check_timeout()
 
   def _forget (self, connection):

@@ -26,7 +26,7 @@ record (only whole nodes).
 
 from pox.lib.pxpcap.writer import PCapRawWriter
 from pox.core import core
-from sim_core import SimNetDev
+from . sim_core import SimNetDev
 
 
 log = core.getLogger()
@@ -48,7 +48,7 @@ class PCapper (object):
     if fn is None: fn = self.topo.timestamp
     fn = "%s_%s.pcap" % (fn, self.name)
     self.log.debug("Writing to %s", fn)
-    self._pcap = PCapRawWriter(file(fn, "wb"), True, ip=True)
+    self._pcap = PCapRawWriter(open(fn, "wb"), True, ip=True)
 
   def tx_capture_proc (self, *args):
     self.rx_capture_proc(*args)
@@ -70,7 +70,7 @@ _all_nodes = [False,False]
 def _add_pcap (node, rx, tx):
   pcap = PCapper(node.name, node.log, _basename)
 
-  for dev in node.stack.netdevs.itervalues():
+  for dev in node.stack.netdevs.values():
     # Currently only SimNetDevs supported
     if not isinstance(dev, SimNetDev): continue
     if not isinstance(dev.dst_dev, SimNetDev): continue
@@ -93,7 +93,7 @@ def _handle_GoingUpEvent (e):
     for n in core.sim_topo.nodes:
       if n.name in _nodes: continue # It'll override
       _add_pcap(n, rx, tx)
-  for name,(rx,tx) in _nodes.iteritems():
+  for name,(rx,tx) in _nodes.items():
     n = core.sim_topo.get_node(name)
     _add_pcap(n, rx, tx)
 

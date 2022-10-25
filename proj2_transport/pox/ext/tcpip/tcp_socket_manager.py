@@ -27,7 +27,7 @@ from pox.core import core
 import pox.lib.packet as pkt
 from pox.lib.addresses import IPAddr, IP_ANY
 import random
-import tcp_sockets
+from . import tcp_sockets
 
 log = core.getLogger()
 
@@ -60,9 +60,9 @@ class TCPSocketManager (object):
     self.stack.time.set_timer_in(time_start, self._do_timers)
 
   def _do_timers (self):
-    for s in self.peered.values():
+    for s in list(self.peered.values()):
       s._do_timers()
-    for s in self.unpeered.values():
+    for s in list(self.unpeered.values()):
       s._do_timers()
     self.stack.time.set_timer_in(self.TIMER_GRANULARITY, self._do_timers)
 
@@ -72,10 +72,10 @@ class TCPSocketManager (object):
     """
     # Congratulations, you've found awful code.  As a reward, you can fix it.
     assert isinstance(ip, IPAddr)
-    names = set(n for n,_ in self.peered.iterkeys())
-    names.update(self.unpeered.iterkeys())
+    names = set(n for n,_ in self.peered.keys())
+    names.update(self.unpeered.keys())
     if ip == IP_ANY: names = set([(IP_ANY,p) for _,p in names])
-    for _ in xrange(10000):
+    for _ in range(10000):
       p = self.random.randint(*self.EPHEMERAL_RANGE)
       if (ip, p) not in names:
         return p
@@ -166,7 +166,7 @@ class TCPSocketManager (object):
           return
 
         # Not optimal, but straightforward
-        for n2,s2 in self.unpeered.iteritems():
+        for n2,s2 in self.unpeered.items():
           if n2[1] == n[1]:
             raise PSError("Address in use")
 

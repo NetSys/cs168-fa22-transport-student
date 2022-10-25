@@ -61,7 +61,7 @@ def launch (log_name="", run_time=3, server_isn=None):
 
     def get_client_socket ():
       try:
-        return next(iter(c1.stack.socket_manager.peered.itervalues()))
+        return next(iter(c1.stack.socket_manager.peered.values()))
       except Exception:
         return None
 
@@ -102,7 +102,7 @@ def launch (log_name="", run_time=3, server_isn=None):
     r1.stack.add_packet_capture("*", on_cap, ip_only=True)
 
     def do_score ():
-      tester.expect_eq("#" * 1300 * 100, sapp.all_rx[0][1], "payload correctly sent")
+      tester.expect_eq(("#" * 1300 * 100).encode('ascii'), sapp.all_rx[0][1], "payload correctly sent")
       lat = 500 / 1000.0
       low_srtt = lat * 2 * 0.95
       high_srtt = lat * 2 * 1.05

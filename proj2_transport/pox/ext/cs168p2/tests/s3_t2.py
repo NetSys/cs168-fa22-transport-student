@@ -38,7 +38,7 @@ def launch (log_name="", data="", drop_count=0,
 
     def get_client_socket ():
       try:
-        return next(iter(c1.stack.socket_manager.peered.itervalues()))
+        return next(iter(c1.stack.socket_manager.peered.values()))
       except Exception:
         return None
 
@@ -75,7 +75,7 @@ def launch (log_name="", data="", drop_count=0,
     r1.stack.add_packet_capture("*", on_cap, ip_only=True)
 
     def do_score ():
-      tester.expect_eq(data, capp.rx_buffer, "payload correctly received")
+      tester.expect_eq(data.encode('ascii'), capp.rx_buffer, "payload correctly received")
 
       # # pkts = 3 for hs + 3 payload + 1-3 payload ack + maybe 4 for close + 1 threshold
       #tester.expect_true(12 <= len(pkts) <= 14, "4 <= num of packets <= 10")

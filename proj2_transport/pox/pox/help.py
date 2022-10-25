@@ -18,6 +18,7 @@ Attempts to give help on other components
 
 from __future__ import print_function
 import pox.boot as boot
+from pox.lib.util import first_of
 import inspect
 import sys
 
@@ -32,7 +33,7 @@ def _show_args (f,name):
 
   argnames,varargs,kws,defaults = inspect.getargspec(f)
   argcount = len(argnames)
-  defaults = list((f.func_defaults) or [])
+  defaults = list((f.__defaults__) or [])
   defaults = [EMPTY] * (argcount - len(defaults)) + defaults
 
   args = {}
@@ -55,7 +56,7 @@ def _show_args (f,name):
     out.append(" {0:25} {1:25}".format("Name", "Default"))
     out.append(" {0:25} {0:25}".format("-" * 15))
 
-    for k,v in args.iteritems():
+    for k,v in args.items():
       k = k.replace("_","-")
       out.append(" {0:25} {1:25}".format(k,str(v[0])))
 
@@ -98,8 +99,8 @@ def launch (no_args = False, short = False, **kw):
             "Showing help for help instead.")
     kw = {'help':True}
 
-  component = kw.keys()[0]
-  launcher = kw.values()[0]
+  component = first_of(kw.keys())
+  launcher = first_of(kw.values())
 
   if component == 'help':
     # Special case!

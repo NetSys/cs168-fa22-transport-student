@@ -184,7 +184,7 @@ class Call (Operator):
         ao = Literal(v)
       _self._arg.append(ao)
     _self._kw = {}
-    for k,v in kw.iteritems():
+    for k,v in kw.items():
       ao = None
       if isinstance(v, Operator):
         ao = v
@@ -197,7 +197,7 @@ class Call (Operator):
     for arg in self._arg:
       arglist.append(arg(n,li))
     kws = {}
-    for k,v in self._kw.iteritems():
+    for k,v in self._kw.items():
       kws[k] = v(n)
     func = arglist.pop(0)
     return func(*arglist, **kws)
@@ -474,7 +474,7 @@ class Graph (object):
       _ = np1[0]
     except:
       # portless (hacky)
-      for free in xrange(1000):
+      for free in range(1000):
         if free not in np1.ports:
           np1 = (np1,free)
           break
@@ -482,7 +482,7 @@ class Graph (object):
       _ = np2[0]
     except:
       # portless (hacky)
-      for free in xrange(1000):
+      for free in range(1000):
         if free not in np2.ports:
           np2 = (np2,free)
           break
@@ -579,7 +579,7 @@ class Graph (object):
 
   def _test_node (self, n, args=(), kw={}, link=None):
     #TODO: Should use a special value for unspecified n2
-    for k,v in kw.iteritems():
+    for k,v in kw.items():
       if k == "is_a":
         if not isinstance(n,v): return False
       elif k == "type":
@@ -679,28 +679,28 @@ def test():
   g.link((n1,0),(n2,0))
   g.link((n1,1),(n3,0))
 
-  print g.find(is_a=Node1)
-  print g.find(is_a=Node2)
-  print g.find(type=Node1)
-  print g.find(type=Node3)
-  print g.find_links()
-  print "=== NEIGHBORS ==="
-  print g.neighbors(n1)
-  print g.find_port(n1, n2)
-  print g.connected(n1, n3)
-  print g.ports_for_node(n3)
+  print(g.find(is_a=Node1))
+  print(g.find(is_a=Node2))
+  print(g.find(type=Node1))
+  print(g.find(type=Node3))
+  print(g.find_links())
+  print("=== NEIGHBORS ===")
+  print(g.neighbors(n1))
+  print(g.find_port(n1, n2))
+  print(g.connected(n1, n3))
+  print(g.ports_for_node(n3))
 
-  print [(n, x[0], x[1][0], x[1][1]) for n in g.find(is_a=Node1) for x in g.ports_for_node(n).iteritems() ]
+  print([(n, x[0], x[1][0], x[1][1]) for n in g.find(is_a=Node1) for x in g.ports_for_node(n).items() ])
 
   g.disconnect_nodes(n1, n3)
 
-  print g.find_links()
+  print(g.find_links())
   g.link((n2, 1), (n3, 1))
   g.link((n1,1), (n3, 0))
   g.link((n1,0), (n2, 0))
-  print g.find_links()
+  print(g.find_links())
   g.disconnect_node(n3)
-  print g.find_links()
+  print(g.find_links())
   import code
   code.interact(local=locals())
 

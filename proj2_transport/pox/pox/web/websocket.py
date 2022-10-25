@@ -39,8 +39,11 @@ log = core.getLogger()
 import base64
 import hashlib
 import struct
+import json
 
 from pox.web.webcore import SplitRequestHandler
+
+from http.cookies import SimpleCookie
 
 from collections import deque
 
@@ -58,6 +61,14 @@ class WebsocketHandler (SplitRequestHandler, object):
   You can send messages via send().  This should be called from the
   cooperative context.
   """
+
+  # We always set no cookieguard, because this is what the split request
+  # handler looks at, and we don't want *it* to do cookieguard.
+  pox_cookieguard = False
+
+  # This controls whether websockets actually do cookieguard.  If we
+  # set it to None, the parent's (splitter's) value is used.
+  ws_pox_cookieguard = None
 
   _websocket_open = False
   _initial_send_delay = 0.010
@@ -97,15 +108,39 @@ class WebsocketHandler (SplitRequestHandler, object):
     self.send_response(101, "Switching Protocols")
     k = self.headers.get("Sec-WebSocket-Key", "")
     k += "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
-    self.send_header("Sec-WebSocket-Accept",
-                     base64.b64encode(hashlib.sha1(k).digest()))
+    k = base64.b64encode(hashlib.sha1(k.encode()).digest()).decode()
+    self.send_header("Sec-WebSocket-Accept", k)
     self.send_header("Upgrade", "websocket")
     self.send_header("Connection", "Upgrade")
+
+    do_cg = getattr(self, "ws_pox_cookieguard", None)
+    if do_cg is None: do_cg = getattr(self.parent, "pox_cookieguard", True)
+    if not do_cg:
+      cg_ok = True
+    else:
+      cookies = SimpleCookie(self.headers.get('Cookie'))
+      cgc = cookies.get(self.parent._pox_cookieguard_cookie_name)
+      if cgc and cgc.value == self.parent._get_cookieguard_cookie():
+        cg_ok = True
+      else:
+        # Cookieguard failed.
+        cookie = ("%s=%s; SameSite=Strict; HttpOnly; path=/"
+                  % (self.parent._pox_cookieguard_cookie_name,
+                     self.parent._get_cookieguard_cookie()))
+        self.send_header("Set-Cookie", cookie)
+        self.send_header("POX", "request-reconnect")
+
+        cg_ok = False
+
     self.end_headers()
 
     # Now stop using wfile and use raw socket
     self.wfile.flush()
     self.connection.settimeout(0)
+
+    if not cg_ok:
+      log.info("Bad POX CookieGuard cookie  -- closing connection")
+      return
 
     self._websocket_open = True
     self._queue_call(self._on_start)
@@ -113,11 +148,11 @@ class WebsocketHandler (SplitRequestHandler, object):
     def feeder ():
       data = b''
       old_op = None
+      hdr = b''
       while self._websocket_open:
-        hdr = b''
-
         while len(hdr) < 2:
-          hdr += yield True
+          newdata = yield True
+          if newdata: hdr += newdata
 
         flags_op,len1 = struct.unpack_from("!BB", hdr, 0)
         op = flags_op & 0x0f
@@ -132,11 +167,11 @@ class WebsocketHandler (SplitRequestHandler, object):
             length = len1
             break
           elif len1 == 0x7e and len(hdr) >= 2:
-            length = struct.unpack_from("!H", hdr, 0)
+            length = struct.unpack_from("!H", hdr, 0)[0]
             hdr = hdr[2:]
             break
           elif len1 == 0x7f and len(hdr) >= 8:
-            length = struct.unpack_from("!Q", hdr, 0)
+            length = struct.unpack_from("!Q", hdr, 0)[0]
             hdr = hdr[8:]
             break
           else:
@@ -146,13 +181,16 @@ class WebsocketHandler (SplitRequestHandler, object):
         while len(hdr) < 4:
           hdr += yield True
 
-        mask = [ord(x) for x in hdr[:4]]
+        mask = [x for x in hdr[:4]]
         hdr = hdr[4:]
 
         while len(hdr) < length:
           hdr += yield True
 
-        d = b"".join(chr(ord(c) ^ mask[i % 4]) for i,c in enumerate(hdr))
+        d = hdr[:length]
+        hdr = hdr[length:]
+
+        d = bytes((c ^ mask[i % 4]) for i,c in enumerate(d))
 
         if not fin:
           if op == self.WS_CONTINUE:
@@ -185,14 +223,19 @@ class WebsocketHandler (SplitRequestHandler, object):
             pass # Do nothing for unknown type
 
     deframer = feeder()
-    deframer.send(None)
+    try:
+      deframer.send(None)
+    except StopIteration:
+      pass # PEP 479?
 
     # This is nutso, but it just might work.
     # *Try* to read individual bytes from rfile in case it has some
     # buffered.  When it fails, switch to reading from connection.
     while True:
       try:
-        dframer.send(self.rfile.read(1))
+        d = self.rfile.read(1)
+        if not d: break
+        deframer.send(d)
       except Exception:
         break
 
@@ -351,6 +394,7 @@ class WebsocketHandler (SplitRequestHandler, object):
     return True
 
   def send (self, msg):
+    if isinstance(msg, dict): msg = json.dumps(msg)
     try:
       msg = self._frame(self.WS_TEXT, msg.encode())
       self._send_real(msg)

@@ -20,16 +20,16 @@ from pox.core import core
 
 import time
 import datetime
-from time_manager import RealTimeManager, VirtualTimeManager
-from tcp_socket_manager import TCPSocketManager
+from . time_manager import RealTimeManager, VirtualTimeManager
+from . tcp_socket_manager import TCPSocketManager
 
-from units import *
+from . units import *
 
-from queues import SimpleQueue, Queue
-from wires import SimpleWire, Wire
-from netdev import NetDev, CapturedPacketTX, CapturedPacketRX
-from sim_nodes import Node
-from ip_stack import Route
+from . queues import SimpleQueue, Queue
+from . wires import SimpleWire, Wire
+from . netdev import NetDev, CapturedPacketTX, CapturedPacketRX
+from . sim_nodes import Node
+from . ip_stack import Route
 
 import pox.lib.packet as pkt
 
@@ -199,7 +199,7 @@ class TopologyBase (object):
     while True:
       rounds += 1
       changed = False
-      for (a,b),wire in self.wires.iteritems():
+      for (a,b),wire in self.wires.items():
         c1 = share_routes(a, b, wire)
         c2 = share_routes(b, a, wire)
         if c1 or c2: changed = True
@@ -265,7 +265,7 @@ class TopologyBase (object):
     """
     For a pair of nodes, return connecting netdevs
     """
-    for d1 in n1.stack.netdevs.itervalues():
+    for d1 in n1.stack.netdevs.values():
       if isinstance(d1, SimNetDev):
         if d1.dst_dev and d1.dst_dev.node is n2:
           return d1,d1.dst_dev

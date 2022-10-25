@@ -181,7 +181,7 @@ class LLDPSender (object):
     """
 
     chassis_id = pkt.chassis_id(subtype=pkt.chassis_id.SUB_LOCAL)
-    chassis_id.id = bytes('dpid:' + hex(long(dpid))[2:-1])
+    chassis_id.id = ('dpid:' + hex(int(dpid))[2:]).encode()
     # Maybe this should be a MAC.  But a MAC of what?  Local port, maybe?
 
     port_id = pkt.port_id(subtype=pkt.port_id.SUB_PORT, id=str(port_num))
@@ -189,7 +189,7 @@ class LLDPSender (object):
     ttl = pkt.ttl(ttl = ttl)
 
     sysdesc = pkt.system_description()
-    sysdesc.payload = bytes('dpid:' + hex(long(dpid))[2:-1])
+    sysdesc.payload = ('dpid:' + hex(int(dpid))[2:]).encode()
 
     discovery_packet = pkt.lldp()
     discovery_packet.tlvs.append(chassis_id)
@@ -296,7 +296,7 @@ class Discovery (EventMixin):
   def install_flow (self, con_or_dpid, priority = None):
     if priority is None:
       priority = self._flow_priority
-    if isinstance(con_or_dpid, (int,long)):
+    if isinstance(con_or_dpid, int):
       con = core.openflow.connections.get(con_or_dpid)
       if con is None:
         log.warn("Can't install flow for %s", dpid_to_str(con_or_dpid))
@@ -331,7 +331,7 @@ class Discovery (EventMixin):
     """
     now = time.time()
 
-    expired = [link for link,timestamp in self.adjacency.iteritems()
+    expired = [link for link,timestamp in self.adjacency.items()
                if timestamp + self._link_timeout < now]
     if expired:
       for link in expired:
@@ -385,7 +385,7 @@ class Discovery (EventMixin):
       for t in lldph.tlvs[3:]:
         if t.tlv_type == pkt.lldp.SYSTEM_DESC_TLV:
           # This is our favored way...
-          for line in t.payload.split('\n'):
+          for line in t.payload.decode().split('\n'):
             if line.startswith('dpid:'):
               try:
                 return int(line[5:], 16)
@@ -405,7 +405,7 @@ class Discovery (EventMixin):
     if originatorDPID == None:
       # We'll look in the CHASSIS ID
       if lldph.tlvs[0].subtype == pkt.chassis_id.SUB_LOCAL:
-        if lldph.tlvs[0].id.startswith('dpid:'):
+        if lldph.tlvs[0].id.startswith(b'dpid:'):
           # This is how NOX does it at the time of writing
           try:
             originatorDPID = int(lldph.tlvs[0].id[5:], 16)
@@ -542,9 +542,9 @@ class DiscoveryGraph (object):
     k = (l.end[0],l.end[1])
     if event.added:
       self.g.add_edge(l.dpid1, l.dpid2, key=k)
-      self.g.edge[l.dpid1][l.dpid2][k]['dead'] = False
+      self.g.edges[l.dpid1,l.dpid2,k]['dead'] = False
     elif event.removed:
-      self.g.edge[l.dpid1][l.dpid2][k]['dead'] = True
+      self.g.edges[l.dpid1,l.dpid2,k]['dead'] = True
       #self.g.remove_edge(l.dpid1, l.dpid2, key=k)
 
     self._do_auto_export()

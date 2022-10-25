@@ -114,7 +114,7 @@ class MissingChannel (Event):
 
 class MessageReceived (Event):
   """
-  Fired by a channel when a message has been receieved.
+  Fired by a channel when a message has been received.
 
   Always fired on the Connection itself.  Also fired on the corresponding
   Channel object as specified by the CHANNEL key.
@@ -218,7 +218,7 @@ class Connection (EventMixin):
     if self._is_connected is False: return
     self._transport._forget(self)
     self._is_connected = False
-    for name,chan in self._transport._nexus._channels.items():
+    for name,chan in list(self._transport._nexus._channels.items()):
       chan._remove_member(self)
     self.raiseEventNoErrors(ConnectionClosed, self)
     #self._transport._nexus.raiseEventNoErrors(ConnectionClosed, self)
@@ -329,7 +329,7 @@ class Channel (EventMixin):
     associated (defaults to core.MessengerNexus).
     """
     EventMixin.__init__(self)
-    assert isinstance(name, basestring)
+    assert isinstance(name, str)
     self._name = name
 
     self._nexus = _get_nexus(nexus)
@@ -635,13 +635,14 @@ class MessengerNexus (EventMixin):
 
     key = str(random.random()) + str(time.time()) + str(r)
     key += str(id(key)) + self._session_salt
+    key = key.encode()
 
-    key = b32encode(hashlib.md5(key).digest()).upper().replace('=','')
+    key = b32encode(hashlib.md5(key).digest()).upper().replace(b'=',b'')
 
     def alphahex (r):
       """ base 16 on digits 'a' through 'p' """
       r=hex(r)[2:].lower()
-      return ''.join(chr((10 if ord(x) >= 97 else 49) + ord(x)) for x in r)
+      return bytes(((10 if x >= 97 else 49) + x) for x in r)
 
     key = alphahex(r) + key
 

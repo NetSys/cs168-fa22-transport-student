@@ -61,7 +61,7 @@ def _MGE (t, s):
 _make_u32_binary_op("PLUS", operator.add)
 _make_u32_binary_op("MINUS", operator.sub)
 _make_u32_binary_op("TIMES", operator.mul)
-_make_u32_binary_op("DIVIDED_BY", operator.div)
+_make_u32_binary_op("DIVIDED_BY", operator.truediv)
 _make_u32_binary_op("GT", operator.gt)
 _make_u32_binary_op("GE", operator.ge)
 _make_u32_binary_op("LT", operator.lt)

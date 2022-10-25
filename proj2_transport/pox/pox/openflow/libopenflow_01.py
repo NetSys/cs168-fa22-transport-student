@@ -37,6 +37,8 @@ from pox.lib.util import assert_type
 from pox.lib.util import initHelper
 from pox.lib.util import hexdump
 from pox.lib.util import is_listlike
+from pox.lib.util import ClassicCmp
+from functools import reduce
 
 
 EMPTY_ETH = EthAddr(None)
@@ -71,7 +73,7 @@ def XIDGenerator (start = 1, stop = MAX_XID):
       i = start
 
 def xid_generator (start = 1, stop = MAX_XID):
-  return XIDGenerator(start, stop).next
+  return XIDGenerator(start, stop).__next__
 
 def user_xid_generator ():
   return xid_generator(0x80000000, 0xffFFffFF)
@@ -124,7 +126,7 @@ def _readzs (data, offset, length):
   #if len(d[1].replace(b"\x00", b"")) > 0:
   #  raise RuntimeError("Non-zero string padding")
   assert True if (len(d) == 1) else (len(d[1].replace(b"\x00", b"")) == 0)
-  return (offset, d[0])
+  return (offset, d[0].decode("latin-1"))
 
 def _readether (data, offset):
   (offset, d) = _read(data, offset, 6)
@@ -133,6 +135,10 @@ def _readether (data, offset):
 def _readip (data, offset, networkOrder = True):
   (offset, d) = _read(data, offset, 4)
   return (offset, IPAddr(d, networkOrder = networkOrder))
+
+def _packzs (data, length):
+  if isinstance(data, str): data = data.encode("latin-1")
+  return data.ljust(length, b'\0')
 
 # ----------------------------------------------------------------------
 
@@ -161,7 +167,7 @@ class _ofp_meta (type):
       return cls._MIN_LENGTH
 
 
-class ofp_base (object):
+class ofp_base (object, metaclass=_ofp_meta):
   """
   Base class for OpenFlow messages/structures
 
@@ -170,7 +176,6 @@ class ofp_base (object):
   implement a __len__ instance method and set a class level _MIN_LENGTH
   attribute to your minimum length.
   """
-  __metaclass__ = _ofp_meta
 
   def _assert (self):
     r = self._validate()
@@ -673,7 +678,7 @@ class ofp_queue_prop_base (ofp_base):
 
 #2. Common Structures
 ##2.1 Port Structures
-class ofp_phy_port (ofp_base):
+class ofp_phy_port (ofp_base, ClassicCmp):
   def __init__ (self, **kw):
     self.port_no = 0
     self.hw_addr = EMPTY_ETH
@@ -728,7 +733,7 @@ class ofp_phy_port (ofp_base):
     packed += struct.pack("!H", self.port_no)
     packed += (self.hw_addr if isinstance(self.hw_addr, bytes) else
                self.hw_addr.toRaw())
-    packed += self.name.ljust(OFP_MAX_PORT_NAME_LEN,'\0')
+    packed += _packzs(self.name, OFP_MAX_PORT_NAME_LEN)
     packed += struct.pack("!LLLLLL", self.config, self.state, self.curr,
                           self.advertised, self.supported, self.peer)
     return packed
@@ -760,7 +765,7 @@ class ofp_phy_port (ofp_base):
     if self.peer != other.peer: return False
     return True
 
-  def __cmp__ (self, other):
+  def _classic__cmp__ (self, other):
     if type(other) != type(self): return id(self)-id(other)
     if self.port_no < other.port_no: return -1
     if self.port_no > other.port_no: return 1
@@ -1009,7 +1014,7 @@ class ofp_match (ofp_base):
 
   def clone (self):
     n = ofp_match()
-    for k,v in ofp_match_data.iteritems():
+    for k,v in ofp_match_data.items():
       setattr(n, '_' + k, getattr(self, '_' + k))
     n.wildcards = self.wildcards
     return n
@@ -1034,14 +1039,14 @@ class ofp_match (ofp_base):
   def __init__ (self, **kw):
     self._locked = False
 
-    for k,v in ofp_match_data.iteritems():
+    for k,v in ofp_match_data.items():
       setattr(self, '_' + k, v[0])
 
     self.wildcards = self._normalize_wildcards(OFPFW_ALL)
 
     # This is basically initHelper(), but tweaked slightly since this
     # class does some magic of its own.
-    for k,v in kw.iteritems():
+    for k,v in kw.items():
       if not hasattr(self, '_'+k):
         raise TypeError(self.__class__.__name__ + " constructor got "
           + "unexpected keyword argument '" + k + "'")
@@ -1216,7 +1221,6 @@ class ofp_match (ofp_base):
     def fix (addr):
       if addr is None: return 0
       if type(addr) is int: return addr & 0xffFFffFF
-      if type(addr) is long: return addr & 0xffFFffFF
       return addr.toUnsigned()
 
     packed += struct.pack("!LLHH", check_ip_or_arp(fix(self.nw_src)),
@@ -1260,7 +1264,7 @@ class ofp_match (ofp_base):
     if self.dl_type == 0x0800:
         # IP
         if  self.nw_proto not in (1,6,17):
-          # not TCP/UDP/ICMP -> Clear TP wildcards for the wire
+          # not ICMP/TCP/UDP -> Clear TP wildcards for the wire
           return wildcards & ~(OFPFW_TP_SRC | OFPFW_TP_DST)
         else:
           return wildcards
@@ -1287,7 +1291,7 @@ class ofp_match (ofp_base):
     if self.dl_type == 0x0800:
         # IP
         if  self.nw_proto not in (1,6,17):
-          # not TCP/UDP/ICMP -> Clear TP wildcards for the wire
+          # not ICMP/TCP/UDP -> Clear TP wildcards for the wire
           self.tp_src = None
           self.tp_dst = None
           return
@@ -1323,7 +1327,7 @@ class ofp_match (ofp_base):
     if self._dl_type == 0x0800:
         # IP
         if  self._nw_proto not in (1,6,17):
-          # not TCP/UDP/ICMP -> Set TP wildcards for the object
+          # not ICMP/TCP/UDP -> Set TP wildcards for the object
           return wildcards | (OFPFW_TP_SRC | OFPFW_TP_DST)
         else:
           return wildcards
@@ -1384,7 +1388,7 @@ class ofp_match (ofp_base):
       v = getattr(self, f)
       if type(v) is int:
         h ^= v
-      elif type(v) is long:
+      elif type(v) is int:
         h ^= v
       else:
         h ^= hash(v)
@@ -1489,7 +1493,7 @@ class ofp_match (ofp_base):
 
     def show_wildcards(w):
       parts = [ k.lower()[len("OFPFW_"):]
-                for (k,v) in ofp_flow_wildcards_rev_map.iteritems()
+                for (k,v) in ofp_flow_wildcards_rev_map.items()
                 if v & w == v ]
       nw_src_bits = (w & OFPFW_NW_SRC_MASK) >> OFPFW_NW_SRC_SHIFT
       if nw_src_bits > 0:
@@ -2178,7 +2182,7 @@ class ofp_features_reply (ofp_header):
     offset,(self.capabilities, self.actions) = _unpack("!LL", raw, offset)
     portCount = (length - 32) // len(ofp_phy_port)
     self.ports = []
-    for i in xrange(0, portCount):
+    for i in range(0, portCount):
       p = ofp_phy_port()
       offset = p.unpack(raw, offset)
       self.ports.append(p)
@@ -2821,11 +2825,11 @@ class ofp_desc_stats (ofp_stats_body_base):
     assert self._assert()
 
     packed = b""
-    packed += self.mfr_desc.ljust(DESC_STR_LEN,'\0')
-    packed += self.hw_desc.ljust(DESC_STR_LEN,'\0')
-    packed += self.sw_desc.ljust(DESC_STR_LEN,'\0')
-    packed += self.serial_num.ljust(SERIAL_NUM_LEN,'\0')
-    packed += self.dp_desc.ljust(DESC_STR_LEN,'\0')
+    packed += _packzs(self.mfr_desc, DESC_STR_LEN)
+    packed += _packzs(self.hw_desc, DESC_STR_LEN)
+    packed += _packzs(self.sw_desc, DESC_STR_LEN)
+    packed += _packzs(self.serial_num, SERIAL_NUM_LEN)
+    packed += _packzs(self.dp_desc, DESC_STR_LEN)
     return packed
 
   def unpack (self, raw, offset, avail):
@@ -3786,7 +3790,7 @@ class ofp_packet_in (ofp_header):
   def data (self, data):
     assert assert_type("data", data, (packet_base, bytes))
     if data is None:
-      self._data = ''
+      self._data = b''
     elif isinstance(data, packet_base):
       self._data = data.pack()
     else:
@@ -4054,10 +4058,9 @@ class ofp_hello (ofp_header):
     packed += ofp_header.pack(self)
     return packed
 
-  #def unpack (self, raw, offset=0):
-  #  offset,length = self._unpack_header(raw, offset)
-  #  assert length == len(self)
-  #  return offset,length
+  def unpack (self, raw, offset=0):
+    newoffset,length = self._unpack_header(raw, offset)
+    return offset+length,length
 
   @staticmethod
   def __len__ ():
@@ -4387,7 +4390,7 @@ def _unpack_actions (b, length, offset=0):
 def _init ():
   def formatMap (name, m):
     o = name + " = {\n"
-    vk = sorted([(v,k) for k,v in m.iteritems()])
+    vk = sorted([(v,k) for k,v in m.items()])
     maxlen = 2 + len(reduce(lambda a,b: a if len(a)>len(b) else b,
                             (v for k,v in vk)))
     fstr = "  %-" + str(maxlen) + "s : %s,\n"
@@ -4412,13 +4415,13 @@ def _init ():
   return
   """
   maps = []
-  for k,v in globals().iteritems():
+  for k,v in globals().items():
     if (k.startswith("ofp_") and k.endswith("_rev_map")
         and type(v) == dict):
       maps.append((k[:-8],v))
   for name,m in maps:
     # Try to generate forward maps
-    forward = dict(((v,k) for k,v in m.iteritems()))
+    forward = dict(((v,k) for k,v in m.items()))
     if len(forward) == len(m):
       if name + "_map" not in globals():
         globals()[name + "_map"] = forward
@@ -4426,7 +4429,7 @@ def _init ():
       print(name + "_rev_map is not a map")
 
     # Try to generate lists
-    v = m.values()
+    v = list(m.values())
     v.sort()
     if v[-1] != len(v)-1:
       # Allow ones where the last value is a special value (e.g., VENDOR)
@@ -4435,7 +4438,7 @@ def _init ():
       globals()[name] = v
 
     # Generate gobals
-    for k,v in m.iteritems():
+    for k,v in m.items():
       globals()[k] = v
 
 

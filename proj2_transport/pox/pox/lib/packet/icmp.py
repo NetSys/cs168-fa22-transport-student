@@ -32,9 +32,9 @@
 #======================================================================
 import struct
 import random
-from packet_utils import *
+from .packet_utils import *
 
-from packet_base import packet_base
+from .packet_base import packet_base
 
 TYPE_ECHO_REPLY   = 0
 TYPE_DEST_UNREACH = 3
@@ -66,7 +66,7 @@ _type_to_name = {
 def _str_rest (s, p):
   if p.next is None:
     return s
-  if isinstance(p.next, basestring):
+  if isinstance(p.next, bytes):
     return "[%s bytes]" % (len(p.next),)
   return s+str(p.next)
 
@@ -178,7 +178,7 @@ class time_exceeded (packet_base):
 
         if dlen >= 28:
             # xxx We're assuming this is IPv4!
-            import ipv4
+            from . import ipv4
             self.next = ipv4.ipv4(raw=raw[self.MIN_LEN:],prev=self)
         else:
             self.next = raw[self.MIN_LEN:]
@@ -243,7 +243,7 @@ class unreach(packet_base):
 
         if dlen >= 28:
             # xxx We're assuming this is IPv4!
-            import ipv4
+            from . import ipv4
             self.next = ipv4.ipv4(raw=raw[unreach.MIN_LEN:],prev=self)
         else:
             self.next = raw[unreach.MIN_LEN:]

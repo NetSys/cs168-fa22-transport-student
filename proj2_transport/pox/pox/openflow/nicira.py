@@ -396,7 +396,7 @@ class nx_flow_mod (of.ofp_flow_mod, of.ofp_vendor_base):
                           self.flags, match_len)
     packed += _PAD6
     packed += match
-    packed += _PAD * ((match_len + 7)/8*8 - match_len)
+    packed += _PAD * ((match_len + 7)//8*8 - match_len)
     for i in self.actions:
       packed += i.pack()
 
@@ -598,7 +598,7 @@ class nx_action_bundle (of.ofp_action_vendor_base):
 
     dst = self.dst
     if dst is None:
-      dst = "\x00\x00\x00\x00"
+      dst = b'\x00\x00\x00\x00'
       assert self.nbits is None
       assert self.offset == 0
       ofs_nbits = 0
@@ -653,7 +653,7 @@ class nx_action_bundle (of.ofp_action_vendor_base):
     self.offset = ofs_nbits >> 6
     self.nbits = (ofs_nbits & 0x3f) + 1
 
-    if dst == "\x00\x00\x00\x00":
+    if dst == b'\x00\x00\x00\x00':
       self.dst = None
       self.nbits = None
       self.offset = 0
@@ -1349,7 +1349,7 @@ class nx_action_learn (of.ofp_action_vendor_base):
     for fs in self.spec:
       p += fs.pack()
     if len(p) % 8:
-      p += '\x00' * (8-(len(p)%8))
+      p += b'\x00' * (8-(len(p)%8))
     return p
 
   def _unpack_body (self, raw, offset, avail):
@@ -1462,7 +1462,7 @@ class _field_and_match (object):
     c = _nxm_type_to_class.get(t)
     if c is None:
       attrs = {'_nxm_type':t}
-      attrs['_nxm_length'] = length/2 if has_mask else length
+      attrs['_nxm_length'] = length//2 if has_mask else length
       c = type('nxm_type_'+str(t), (NXM_GENERIC,), attrs)
     return c
 
@@ -1634,7 +1634,7 @@ class flow_mod_spec (object):
     dst_inst = None
     n_bits = None
 
-    for k,v in kw.iteritems():
+    for k,v in kw.items():
       # This is handy, though there's potentially future ambiguity
       s = globals().get('nx_learn_' + k)
       if not s:
@@ -1757,7 +1757,7 @@ class _nxm_tcp_flags (_nxm_numeric):
   """
   def _pack_mask (self, v):
     assert self._nxm_length == 2
-    assert isinstance(v, (int, long))
+    assert isinstance(v, int)
     if (v & 0xf000) != 0:
       raise RuntimeError("Top bits of TCP flags mask must be 0")
     return struct.pack("!H", v)
@@ -1784,7 +1784,7 @@ class _nxm_ip (object):
       self.mask = value[1]
       #if isinstance(mask, (int,long)):
       #  self.mask = mask
-    elif isinstance(value, basestring) and len(value)>4 and '/' in value:
+    elif isinstance(value, str) and len(value)>4 and '/' in value:
       temp = parse_cidr(value, infer=False)
       ip = temp[0]
       self.mask = 32 if temp[1] is None else temp[1]
@@ -1798,7 +1798,7 @@ class _nxm_ip (object):
   def _unpack_value (self, v):
     return IPAddr(v, networkOrder=True)
   def _pack_mask (self, v):
-    if isinstance(v, (int, long)):
+    if isinstance(v, int):
       # Assume CIDR
       if v > 32: v = 32
       elif v < 0: v = 0
@@ -1831,7 +1831,7 @@ class _nxm_ipv6 (object):
       assert len(value) == 2
       ip = value[0]
       self.mask = value[1]
-    elif isinstance(value, (unicode,str)):
+    elif isinstance(value, str):
       ip,mask = IPAddr6.parse_cidr(value, allow_host = True)
       #self.mask = 128 if mask is None else mask
       self.mask = mask
@@ -1845,7 +1845,7 @@ class _nxm_ipv6 (object):
   def _unpack_value (self, v):
     return IPAddr6(v, raw=True)
   def _pack_mask (self, v):
-    if isinstance(v, (int,long)):
+    if isinstance(v, int):
       # Assume CIDR
       if v > 128: v = 128
       elif v < 0: v = 0
@@ -1917,8 +1917,8 @@ class nxm_entry (object):
     mask = None
     if has_mask:
       assert not (length & 1), "Odd length with mask"
-      mask = data[length/2:]
-      data = data[:length/2]
+      mask = data[length//2:]
+      data = data[:length//2]
 
     #NOTE: Should use _class_for_nxm_header?
     c = _nxm_type_to_class.get(t)
@@ -1928,12 +1928,12 @@ class nxm_entry (object):
       e = NXM_GENERIC()
       e._nxm_length = length
       if has_mask:
-        e._nxm_length /= 2
+        e._nxm_length //= 2
       e._nxm_type = t
 
       # Alternate approach: Generate new subclass. To do: cache gen'd types?
       #attrs = {'_nxm_type':t}
-      #attrs['_nxm_length'] = length/2 if has_mask else length
+      #attrs['_nxm_length'] = length//2 if has_mask else length
       #c = type('nxm_type_'+str(t), (NXM_GENERIC,), attrs)
       #e = c()
     else:
@@ -2025,14 +2025,14 @@ class nxm_entry (object):
     if mask is not None:
       assert len(mask) == self._nxm_length, "mask is wrong length"
 
-      if (mask.count("\x00") == self._nxm_length) and omittable:
+      if (mask.count(b'\x00') == self._nxm_length) and omittable:
         return b''
 
-      if (mask.count("\xff") == self._nxm_length):
+      if (mask.count(b'\xff') == self._nxm_length):
         mask = None
 
     if mask is None and self._force_mask:
-      mask = "\xff" * self._nxm_length
+      mask = b'\xff' * self._nxm_length
 
     if mask is not None:
       h |= (1 << 8)
@@ -2049,7 +2049,7 @@ class nxm_entry (object):
 
     r += value
     if mask is not None:
-      assert 0 == sum(ord(v)&(0xff&~ord(m)) for v,m in zip(value,mask)), \
+      assert 0 == sum(v&(0xff&~m) for v,m in zip(value,mask)), \
              "nonzero masked bits"
       r += mask
 
@@ -2058,7 +2058,7 @@ class nxm_entry (object):
   def __str__ (self):
     r = self.__class__.__name__ + "(" + str(self.value)
     if self.mask is not None:
-      if self.mask.raw != ("\xff" * self._nxm_length):
+      if self.mask.raw != (b'\xff' * self._nxm_length):
         r += "/" + str(self.mask)
     #if self.is_reg: r += "[r]"
     return r + ")"
@@ -2091,10 +2091,10 @@ class NXM_GENERIC (_nxm_raw, nxm_entry):
   def __str__ (self):
     r = "NXM_%08x_%i" % (self.nxm_vendor, self.nxm_field)
     r += "("
-    r += "".join("%02x" % (ord(x),) for x in self.value)
+    r += "".join("%02x" % (x,) for x in self.value)
     #+ repr(self.value)
     if self.mask is not None:
-      if self.mask != ("\xff" * self._nxm_length):
+      if self.mask != (b'\xff' * self._nxm_length):
         r += "/" + repr(self.mask)
     return r + ")"
 
@@ -2141,8 +2141,8 @@ def _make_nxm (__name, __vendor, __field, __len = None, type = None,
   t = _make_type(__vendor, __field)
   kw['_nxm_type'] = t
   if __len is not None: kw['_nxm_length'] = __len
-  import __builtin__
-  typ = __builtin__.type
+  import builtins
+  typ = builtins.type
   c = typ(__name, tuple(type), kw)
   _nxm_type_to_class[t] = c
   _nxm_name_to_type[__name] = t
@@ -2429,7 +2429,7 @@ class nxt_packet_in (nicira_base, of.ofp_packet_in):
                           match_len)
     packed += _PAD6
     packed += match.pack()
-    packed += _PAD * ((match_len + 7)/8*8 - match_len)
+    packed += _PAD * ((match_len + 7)//8*8 - match_len)
     packed += _PAD2
     packed += self.packed_data
     return packed
@@ -2573,7 +2573,7 @@ class nx_match (object):
     return offset
 
   def pack (self, omittable = False):
-    return ''.join(x.pack(omittable) for x in self._parts)
+    return b''.join(x.pack(omittable) for x in self._parts)
 
   def __eq__ (self, other):
     if not isinstance(other, self.__class__): return False
@@ -2799,7 +2799,7 @@ def _unpack_nx_vendor (raw, offset):
     nrr = nx_role_reply()
     return nrr.unpack(raw, offset)[0], nrr
   else:
-    print "NO UNPACKER FOR",subtype
+    print("NO UNPACKER FOR",subtype)
     return _old_unpacker(raw, offset)
 
 

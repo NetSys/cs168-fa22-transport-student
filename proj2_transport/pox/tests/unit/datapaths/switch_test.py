@@ -62,7 +62,7 @@ class SwitchImplTest (unittest.TestCase):
         dst=EthAddr("00:00:00:00:00:02"),
         payload=ipv4(srcip=IPAddr("1.2.3.4"),
         dstip=IPAddr("1.2.3.5"),
-        payload=udp(srcport=1234, dstport=53, payload="haha")))
+        payload=udp(srcport=1234, dstport=53, payload=b"haha")))
 
   def test_hello(self):
     c = self.conn
@@ -101,7 +101,7 @@ class SwitchImplTest (unittest.TestCase):
     c = self.conn
     s = self.switch
     received = []
-    s.addListener(DpPacketOut, lambda(event): received.append(event))
+    s.addListener(DpPacketOut, lambda event: received.append(event))
 
     packet = self.packet
     c.to_switch(ofp_packet_out(data=packet,
@@ -128,7 +128,7 @@ class SwitchImplTest (unittest.TestCase):
     c = self.conn
     s = self.switch
     received = []
-    s.addListener(DpPacketOut, lambda(event): received.append(event))
+    s.addListener(DpPacketOut, lambda event: received.append(event))
     # no flow entries -> should result in a packet_in
     s.rx_packet(self.packet, in_port=1)
     self.assertEqual(len(c.received), 1)
@@ -163,7 +163,7 @@ class SwitchImplTest (unittest.TestCase):
     c = self.conn
     s = self.switch
     original_num_ports = len(self.switch.ports)
-    p = self.switch.ports.values()[0]
+    p = list(self.switch.ports.values())[0]
     s.delete_port(p)
     new_num_ports = len(self.switch.ports)
     self.assertTrue(new_num_ports == original_num_ports - 1,
@@ -245,7 +245,7 @@ class ProcessFlowModTest(unittest.TestCase):
         dst=EthAddr("00:00:00:00:00:02"),
         payload=ipv4(srcip=IPAddr("1.2.3.4"),
         dstip=IPAddr("1.2.3.5"),
-        payload=udp(srcport=1234, dstport=53, payload="haha")))
+        payload=udp(srcport=1234, dstport=53, payload=b"haha")))
 
   def test_process_flow_mod_add(self):
     """ test that simple insertion of a flow works"""

@@ -14,8 +14,8 @@
 
 from __future__ import print_function
 from collections import deque
-from Queue import PriorityQueue
-from Queue import Queue
+from queue import PriorityQueue
+from queue import Queue
 import time
 import threading
 from threading import Thread
@@ -29,6 +29,7 @@ import random
 from types import GeneratorType
 import inspect
 from pox.lib.epoll_select import EpollSelect
+from pox.lib.util import aslist
 
 #TODO: Need a way to redirect the prints in here to something else (the log).
 
@@ -184,7 +185,6 @@ class Scheduler (object):
 
   def __del__ (self):
     self._hasQuit = True
-    super(Scheduler, self).__del__()
 
   def callLater (self, func, *args, **kw):
     """
@@ -337,7 +337,7 @@ class Scheduler (object):
         # Just unschedule/sleep
         #print "Unschedule", t, rv
         pass
-      elif type(rv) == int or type(rv) == long or type(rv) == float:
+      elif type(rv) == int or type(rv) == float:
         # Sleep time
         if rv == 0:
           #print "sleep 0"
@@ -453,7 +453,7 @@ class Sleep (BlockingOperation):
     if self._t is None:
       # Just unschedule
       return
-    if self._t is 0 or self._t < time.time():
+    if self._t == 0 or self._t < time.time():
       # Just reschedule
       scheduler.fast_schedule(task)
       return
@@ -547,6 +547,13 @@ class Select (BlockingOperation):
   Should be very similar to Python select.select()
   """
   def __init__ (self, *args, **kw):
+    if ( (not isinstance(args[0], (type(None),list)))
+      or (not isinstance(args[1], (type(None),list)))
+      or (not isinstance(args[2], (type(None),list))) ):
+      args = list(args)
+      for i in range(3):
+        args[i] = None if args[i] is None else aslist(args[i])
+
     self._args = args
     self._kw = kw
 
@@ -851,7 +858,7 @@ class SelectHub (object):
     #TODO: Fix this.  It's pretty expensive.  There had been some code which
     #      priority heaped this, but I don't think a fully working version
     #      ever quite made it.
-    for t,trl,twl,txl,tto in tasks.itervalues():
+    for t,trl,twl,txl,tto in tasks.values():
       if tto != None:
         if tto <= now:
           # Already expired
@@ -860,7 +867,7 @@ class SelectHub (object):
           if tto-now > 0.1: print("preexpired",tto,now,tto-now)
           continue
         tt = tto - now
-        if tt < timeout or timeout is None:
+        if timeout is None or tt < timeout:
           timeout = tt
           timeoutTask = t
 
@@ -877,7 +884,7 @@ class SelectHub (object):
         self._return(t, ([],[],[]))
 
     if timeout is None: timeout = CYCLE_MAXIMUM
-    ro, wo, xo = self._select_func( rl.keys() + [self._pinger],
+    ro, wo, xo = self._select_func( list(rl.keys()) + [self._pinger],
                                     wl.keys(),
                                     xl.keys(), timeout )
 
@@ -914,7 +921,7 @@ class SelectHub (object):
         if task not in rets: rets[task] = ([],[],[])
         rets[task][2].append(i)
 
-      for t,v in rets.iteritems():
+      for t,v in rets.items():
         del tasks[t]
         self._return(t, v)
       rets.clear()

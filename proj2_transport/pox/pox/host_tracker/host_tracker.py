@@ -392,9 +392,9 @@ class host_tracker (EventMixin):
     """
     Checks for timed out entries
     """
-    for macEntry in self.entryByMAC.values():
+    for macEntry in list(self.entryByMAC.values()):
       entryPinged = False
-      for ip_addr, ipEntry in macEntry.ipAddrs.items():
+      for ip_addr, ipEntry in list(macEntry.ipAddrs.items()):
         if ipEntry.expired():
           if ipEntry.pings.failed():
             del macEntry.ipAddrs[ip_addr]
@@ -408,9 +408,9 @@ class host_tracker (EventMixin):
         log.info("Entry %s expired", str(macEntry))
         # sanity check: there should be no IP addresses left
         if len(macEntry.ipAddrs) > 0:
-          for ip in macEntry.ipAddrs.keys():
+          for ip_addr in macEntry.ipAddrs.keys():
             log.warning("Entry %s expired but still had IP address %s",
                         str(macEntry), str(ip_addr) )
-            del macEntry.ipAddrs[ip_addr]
+          macEntry.ipAddrs.clear()
         self.raiseEventNoErrors(HostEvent, macEntry, leave=True)
         del self.entryByMAC[macEntry.macaddr]

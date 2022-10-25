@@ -89,12 +89,22 @@
 #   General cleaup/rewrite (code is/has gotten pretty bad)
 
 import struct
-from packet_utils import *
-from packet_utils import TruncatedException as Trunc
+from .packet_utils import *
+from .packet_utils import TruncatedException as Trunc
 
-from packet_base import packet_base
+from .packet_base import packet_base
 
 from pox.lib.addresses import IPAddr,IPAddr6,EthAddr
+
+def _str (s):
+  if isinstance(s, bytes):
+    return s.decode("utf8")
+  return str(s)
+def _bytes (b):
+  if isinstance(b, str):
+    return b.encode("utf8")
+  return bytes(b)
+
 
 rrtype_to_str = {
    1: "A",  # host address
@@ -198,30 +208,31 @@ class dns(packet_base):
                         len(self.authorities), len(self.additional))
 
         def makeName (labels, term):
-          o = '' #TODO: unicode
-          for l in labels.split('.'):
-            o += chr(len(l))
+          if isinstance(labels, str): labels = labels.encode("utf-8")
+          o = b'' #TODO: unicode
+          for l in labels.split(b'.'):
+            o += bytes([len(l)])
             o += l
-          if term: o += '\x00'
+          if term: o += b'\x00'
           return o
 
         name_map = {}
 
         def putName (s, name):
-          pre = ''
-          post = name
+          pre = b''
+          post = _bytes(name)
           while True:
             at = s.find(makeName(post, True))
             if at == -1:
               if post in name_map:
                 at = name_map[post]
             if at == -1:
-              post = post.split('.', 1)
-              if pre: pre += '.'
+              post = post.split(b'.', 1)
+              if pre: pre += b'.'
               pre += post[0]
               if len(post) == 1:
                 if len(pre) == 0:
-                  s += '\x00'
+                  s += b'\x00'
                 else:
                   name_map[name] = len(s)
                   s += makeName(pre, True)
@@ -298,7 +309,7 @@ class dns(packet_base):
         for i in range(0,total_questions):
             try:
                 query_head = self.next_question(raw, query_head)
-            except Exception, e:
+            except Exception as e:
                 self._exc(e, 'parsing questions')
                 return None
 
@@ -306,7 +317,7 @@ class dns(packet_base):
         for i in range(0,total_answers):
             try:
                 query_head = self.next_rr(raw, query_head, self.answers)
-            except Exception, e:
+            except Exception as e:
                 self._exc(e, 'parsing answers')
                 return None
 
@@ -314,7 +325,7 @@ class dns(packet_base):
         for i in range(0,total_auth_rr):
             try:
                 query_head = self.next_rr(raw, query_head, self.authorities)
-            except Exception, e:
+            except Exception as e:
                 self._exc(e, 'parsing authoritative name servers')
                 return None
 
@@ -322,7 +333,7 @@ class dns(packet_base):
         for i in range(0,total_add_rr):
             try:
                 query_head = self.next_rr(raw, query_head, self.additional)
-            except Exception, e:
+            except Exception as e:
                 self._exc(e, 'parsing additional resource records')
                 return None
 
@@ -375,12 +386,12 @@ class dns(packet_base):
     def _read_dns_name_from_index(cls, l, index, retlist):
       try:
         while True:
-            chunk_size = ord(l[index])
+            chunk_size = l[index]
 
             # check whether we have an internal pointer
             if (chunk_size & 0xc0) == 0xc0:
                 # pull out offset from last 14 bits
-                offset = ((ord(l[index]) & 0x3) << 8 ) | ord(l[index+1])
+                offset = ((l[index] & 0x3) << 8 ) | l[index+1]
                 cls._read_dns_name_from_index(l, offset, retlist)
                 index += 1
                 break
@@ -397,7 +408,7 @@ class dns(packet_base):
     def read_dns_name_from_index(cls, l, index):
         retlist = []
         next = cls._read_dns_name_from_index(l, index, retlist)
-        return (next + 1, ".".join(retlist))
+        return (next + 1, b".".join(retlist))
 
     def next_rr(self, l, index, rr_list):
         array_len = len(l)
@@ -463,7 +474,7 @@ class dns(packet_base):
 
     # Utility classes for questions and RRs
 
-    class question:
+    class question (object):
 
         def __init__(self, name, qtype, qclass):
             self.name   = name
@@ -471,15 +482,15 @@ class dns(packet_base):
             self.qclass = qclass
 
         def __str__(self):
-            s = self.name
+            s = _str(self.name)
             if self.qtype in rrtype_to_str:
-                s += " " + rrtype_to_str[self.qtype]
+                s += " "  + _str(rrtype_to_str[self.qtype])
             else:
-                s += " ??? "
+                s += " #" + _str(self.qtype)
             if self.qclass in rrclass_to_str:
-                s += " " + rrclass_to_str[self.qclass]
+                s += " "  + _str(rrclass_to_str[self.qclass])
             else:
-                s += " ??? "
+                s += " #" + _str(self.qclass)
 
             return s
 
@@ -511,20 +522,20 @@ class dns(packet_base):
             self.rddata = _rddata
 
         def __str__ (self):
-            s = self.name
+            s = _str(self.name)
             if self.qtype in rrtype_to_str:
-                s += " " + rrtype_to_str[self.qtype]
+                s += " " +  _str(rrtype_to_str[self.qtype])
             else:
-                s += " ??? "
+                s += " #" + _str(self.qtype)
             if self.qclass in rrclass_to_str:
-                s += " " + rrclass_to_str[self.qclass]
+                s += " " +  _str(rrclass_to_str[self.qclass])
             else:
-                s += " ??? "
-            s += " ttl:"+str(self.ttl)
-            s += " rdlen:"+str(self.rdlen)
-            s += " datalen:" + str(len(self.rddata))
+                s += " #" + _str(self.qclass)
+            s += " ttl:"  + _str(self.ttl)
+            s += " rdlen:"+ _str(self.rdlen)
+            s += " datalen:" + _str(len(self.rddata))
             if len(self.rddata) == 4:
               #FIXME: can be smarter about whether this is an IP
-              s+= " data:" + str(IPAddr(self.rddata))
+              s+= " data:" + _str(IPAddr(self.rddata))
 
             return s

@@ -110,7 +110,7 @@ from socket import SHUT_RD, SHUT_WR, SHUT_RDWR
 
 from math import ceil
 
-from modulo_math import *
+from . modulo_math import *
 
 
 PSError = RuntimeError
@@ -904,7 +904,7 @@ class Socket (object):
       assert remaining >= 0
       if remaining < len(data):
         data = data[:remaining]
-      self.tx_data += data
+      self.tx_data += data.encode('ascii')
       if push: self.tx_push_bytes = len(self.tx_data)
       if wait is False: self._maybe_send()
       return len(data)
@@ -1035,7 +1035,7 @@ class Socket (object):
     count = 0
     remaining = total_size
     while remaining > 0:
-      size = min(remaining, self.smss)
+      size = int(min(remaining, self.smss))
       remaining -= size
       data = self.tx_data[:size]
       self.tx_data = self.tx_data[size:]
@@ -1116,7 +1116,7 @@ class Socket (object):
           self.log.warn("> %s %s", p.tcp.seq, p.tcp.seq|MINUS|self.snd.isn)
 
     sent = 0
-    for which in xrange(maximum):
+    for which in range(maximum):
       if (which+start_packet) >= len(self.retx_queue): break
       #now = self.stack.now
       p = self.retx_queue[which+start_packet]
@@ -2417,7 +2417,7 @@ class Socket (object):
     # again means that the tsval and tsecr look almost the same.  So we use
     # a cryptographic hash against the stack name to actually get some real
     # difference, but still have it be deterministic.
-    self._ts_hash = hash(hashlib.md5(self.stack.name).hexdigest())
+    self._ts_hash = hash(hashlib.md5(self.stack.name.encode('utf-8')).hexdigest())
     self._ts_hash &= 0xffFFffFF
     self._ts_hash &= 0xffFF # Chop high bits off (Easier to read)
 
