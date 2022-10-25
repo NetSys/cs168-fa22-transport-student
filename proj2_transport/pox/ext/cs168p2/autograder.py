@@ -82,7 +82,7 @@ class AutoGrader():
   def __init__(self):
     self.test_dir = "./tests"
     self.configs = self.get_configs(self.test_dir)
-    self.num_stages = 10
+    self.num_stages = 9
     self.test_cases = {}
     for i in range(1 + self.num_stages):
       self.create_test_for_stage(i)
